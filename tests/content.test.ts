@@ -50,6 +50,22 @@ describe('scenarios', () => {
   })
 })
 
+describe('icons', () => {
+  it('every icon key used in content resolves to a real icon', async () => {
+    const { hasIcon } = await import('../src/renderer/src/components/Icon')
+    const { ACHIEVEMENTS } = await import('../src/renderer/src/lib/achievements')
+    const { QUEST_ICON } = await import('../src/renderer/src/lib/quests')
+    const keys = [
+      ...CURRICULUM.map((u) => u.icon),
+      ...TOOLS.map((t) => t.icon),
+      ...ACHIEVEMENTS.map((a) => a.icon),
+      ...Object.values(QUEST_ICON),
+      'snowflake', 'heart-crack', 'gift', 'flame', 'chevrons-up', 'swords'
+    ]
+    for (const k of keys) expect(hasIcon(k), k).toBe(true)
+  })
+})
+
 describe('tools', () => {
   it('reference real units and have unique ids', () => {
     for (const t of TOOLS) expect(unitIds.has(t.unit), t.id).toBe(true)

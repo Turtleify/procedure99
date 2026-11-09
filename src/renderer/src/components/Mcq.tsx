@@ -1,5 +1,6 @@
 import { useEffect, useState, type ReactNode } from 'react'
 import { shuffle } from '../lib/rng'
+import { Icon } from './Icon'
 
 export interface McqOption {
   text: string
@@ -69,7 +70,10 @@ export function Mcq({ prompt, options, explain, onAnswer, onNext, nextLabel = 'N
       </div>
       {answered && (
         <div className={`mcq-feedback ${gotIt ? 'good' : 'bad'}`}>
-          <div className="mcq-verdict">{gotIt ? '✅ Correct!' : '❌ Not quite'}</div>
+          <div className="mcq-verdict">
+            <Icon name={gotIt ? 'check' : 'x'} size={14} stroke={2.4} />
+            {gotIt ? 'Correct' : 'Not quite'}
+          </div>
           {explain && <p>{explain}</p>}
           <button className="btn primary" onClick={onNext} autoFocus>
             {nextLabel} <kbd>Enter</kbd>

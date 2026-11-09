@@ -66,7 +66,7 @@ function createWindow(): void {
     minHeight: 660,
     show: false,
     title: 'Blueprint',
-    backgroundColor: '#0d1020',
+    backgroundColor: '#0b1322',
     icon: makeIcon(256),
     autoHideMenuBar: true,
     webPreferences: {
@@ -164,7 +164,7 @@ function updateTray(): void {
   const sum = summarize(state)
   const mode = state?.settings.startupMode ?? 'tray'
   tray.setToolTip(`Blueprint · 🔥 ${sum.streak}-day streak · ${sum.xpToday}/${sum.goal} XP today`)
-  tray.setImage(sum.goalMet ? makeIcon(32, [61, 220, 151]) : makeIcon(32))
+  tray.setImage(sum.goalMet ? makeIcon(32, [40, 120, 90]) : makeIcon(32))
 
   const modeItem = (m: StartupMode, label: string): MenuItemConstructorOptions => ({
     label,
@@ -240,7 +240,7 @@ async function captureViews(dir: string): Promise<void> {
   if (!win) return
   const wait = (ms: number): Promise<void> => new Promise((r) => setTimeout(r, ms))
   await wait(1500)
-  for (const view of ['home', 'path', 'review', 'arena', 'toolbox', 'trophies', 'settings']) {
+  for (const view of ['home', 'path', 'review', 'daily', 'arena', 'toolbox', 'trophies', 'settings']) {
     win.webContents.send('navigate', view)
     await wait(700)
     const img = await win.webContents.capturePage()

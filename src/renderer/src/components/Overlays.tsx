@@ -1,5 +1,6 @@
 import { useEffect, useRef } from 'react'
 import { useStore, type Toast } from '../store'
+import { Icon } from './Icon'
 
 function ToastItem({ t }: { t: Toast }): JSX.Element {
   const dismiss = useStore((s) => s.dismissToast)
@@ -9,7 +10,9 @@ function ToastItem({ t }: { t: Toast }): JSX.Element {
   }, [t.id, dismiss])
   return (
     <div className={`toast ${t.tone ?? ''}`} onClick={() => dismiss(t.id)}>
-      <div className="toast-icon">{t.icon}</div>
+      <div className="toast-icon">
+        <Icon name={t.icon} size={20} />
+      </div>
       <div>
         <div className="toast-title">{t.title}</div>
         {t.body && <div className="toast-body">{t.body}</div>}
@@ -49,7 +52,8 @@ export function XpPops(): JSX.Element {
   )
 }
 
-const COLORS = ['#6c8cff', '#a06cff', '#3ddc97', '#ffd166', '#ff8a3d', '#5cc8ff', '#f06292']
+// paper snips in the house palette — restrained, not a rainbow
+const COLORS = ['#ece6d8', '#6ec3db', '#e9b949', '#ff6b3d']
 
 export function Confetti(): JSX.Element {
   const burst = useStore((s) => s.confetti)
@@ -62,7 +66,8 @@ export function Confetti(): JSX.Element {
     if (!ctx) return
     canvas.width = window.innerWidth
     canvas.height = window.innerHeight
-    const parts = Array.from({ length: 140 }, () => ({
+    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return
+    const parts = Array.from({ length: 80 }, () => ({
       x: canvas.width / 2 + (Math.random() - 0.5) * 200,
       y: canvas.height / 3,
       vx: (Math.random() - 0.5) * 14,
@@ -86,7 +91,7 @@ export function Confetti(): JSX.Element {
         ctx.rotate(p.rot)
         ctx.fillStyle = p.c
         ctx.globalAlpha = Math.max(0, 1 - frame / 150)
-        ctx.fillRect(-p.r / 2, -p.r / 2, p.r, p.r * 0.6)
+        ctx.fillRect(-p.r / 2, -1, p.r * 1.4, 2.5)
         ctx.restore()
       }
       if (++frame < 150) raf = requestAnimationFrame(draw)

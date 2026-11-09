@@ -1,6 +1,7 @@
 import { dateStr } from '../../../shared/dates'
-import { Bar, ProgressRing } from '../components/bits'
+import { Bar, Label, ProgressRing } from '../components/bits'
 import { Heatmap } from '../components/Heatmap'
+import { Icon } from '../components/Icon'
 import { CURRICULUM } from '../content/curriculum'
 import { levelInfo } from '../lib/levels'
 import { dailyScenario, LESSONS, nextLesson } from '../lib/progress'
@@ -8,13 +9,19 @@ import { allQuestsDone, QUEST_ICON, questLabel } from '../lib/quests'
 import { dueIds } from '../lib/srs'
 import { useStore } from '../store'
 
+const TYPE_ICON = { lesson: 'book-open', byte: 'mic', lab: 'flask' } as const
+const TYPE_NAME = { lesson: 'Lesson', byte: 'Interview Byte', lab: 'Lab' } as const
+
 function greeting(): string {
   const h = new Date().getHours()
-  if (h < 5) return 'Burning the midnight oil'
+  if (h < 5) return 'Late shift'
   if (h < 12) return 'Good morning'
   if (h < 18) return 'Good afternoon'
   return 'Good evening'
 }
+
+const dateLine = (): string =>
+  new Date().toLocaleDateString('en-US', { weekday: 'short', day: '2-digit', month: 'short', year: 'numeric' }).toUpperCase().replace(/,/g, '')
 
 export function Home(): JSX.Element {
   const s = useStore((st) => st.s)
@@ -24,6 +31,7 @@ export function Home(): JSX.Element {
   const t = dateStr()
   const day = s.days[t] ?? { xp: 0, goalMet: false }
   const goal = s.settings.dailyGoal
+  const left = Math.max(0, goal - day.xp)
   const next = nextLesson(s)
   const due = dueIds(s.srs, t).length
   const incident = dailyScenario(s, t)
@@ -31,83 +39,121 @@ export function Home(): JSX.Element {
   const lvl = levelInfo(s.xp)
   const doneCount = Object.keys(s.completed).length
   const questsDone = allQuestsDone(s.quests)
+  const deckSize = Object.keys(s.srs).length
 
-  let streakMsg: string
-  if (day.goalMet) streakMsg = `Goal crushed. Your ${s.streak.count}-day streak is safe until tomorrow. 🔒`
-  else if (s.streak.count > 0) streakMsg = `${goal - day.xp} XP to keep your 🔥 ${s.streak.count}-day streak alive.`
-  else streakMsg = 'Start a streak today. One lesson takes about 5 minutes.'
+  let headline: JSX.Element
+  if (day.goalMet)
+    headline = (
+      <>
+        {greeting()}. Today’s sheet is <em>signed off</em>.
+      </>
+    )
+  else if (s.streak.count > 0)
+    headline = (
+      <>
+        {greeting()}. <em>{left} XP</em> keeps the {s.streak.count}-day streak standing.
+      </>
+    )
+  else
+    headline = (
+      <>
+        {greeting()}. Start a streak with <em>one lesson</em> today.
+      </>
+    )
 
   return (
     <div className="home">
-      <section className="card hero">
-        <div className="hero-text">
-          <div className="eyebrow">{greeting()}</div>
-          <h1>{next ? 'Ready to level up your system design?' : 'You finished the course. Now keep it sharp.'}</h1>
-          <p className="muted">{streakMsg}</p>
+      <section className="card marked hero">
+        <div>
+          <Label bare>
+            {dateLine()}
+          </Label>
+          <h1>{headline}</h1>
           <div className="hero-actions">
             {next ? (
               <button className="btn primary big" onClick={() => go('lesson', { id: next.id })}>
-                {next.type === 'lab' ? '🧪' : next.type === 'byte' ? '🎤' : '▶'} Continue: {next.title}
+                Continue <Icon name="arrow-right" size={16} />
               </button>
             ) : (
               <button className="btn primary big" onClick={() => go('arena')}>
-                ⚔️ Enter the Tradeoff Arena
+                Enter the Arena <Icon name="arrow-right" size={16} />
               </button>
             )}
             {due > 0 && (
-              <button className="btn" onClick={() => go('review')}>
-                🧠 Review {due} due
+              <button className="btn big" onClick={() => go('review')}>
+                <Icon name="brain" size={16} /> Review {due} due
               </button>
             )}
           </div>
           {next && (
-            <div className="hero-sub muted">
-              Unit {next.unitIndex + 1}/{CURRICULUM.length}: {next.unit.icon} {next.unit.title} · {next.minutes} min
+            <div className="next-up">
+              <div className="glyph">
+                <Icon name={TYPE_ICON[next.type]} size={17} />
+              </div>
+              <div>
+                <div className="hint-text">
+                  Next · Unit {String(next.unitIndex + 1).padStart(2, '0')}/{String(CURRICULUM.length).padStart(2, '0')} · {TYPE_NAME[next.type]} · {next.minutes} min
+                </div>
+                <div style={{ fontWeight: 500 }}>
+                  {next.unit.title} — {next.title}
+                </div>
+              </div>
             </div>
           )}
         </div>
         <div className="hero-goal">
-          <ProgressRing value={day.xp} max={goal} size={150} stroke={12}>
+          <ProgressRing value={day.xp} max={goal}>
             <div className="ring-big">{day.xp}</div>
-            <div className="ring-small">/ {goal} XP</div>
+            <div className="ring-small">OF {goal} XP</div>
           </ProgressRing>
-          <div className="muted small">{day.goalMet ? '✅ Daily goal met' : 'Daily goal'}</div>
+          <span className={`tag ${day.goalMet ? 'good' : ''}`}>{day.goalMet ? 'Goal met' : 'Daily goal'}</span>
         </div>
       </section>
 
       <section className="card quests">
-        <div className="card-head">
-          <h2>Daily quests</h2>
-          <span className="muted small">reset at midnight</span>
-        </div>
-        {s.quests?.list.map((q, i) => (
-          <div key={i} className={`quest ${q.progress >= q.target ? 'done' : ''}`}>
-            <div className="quest-icon">{q.progress >= q.target ? '✅' : QUEST_ICON[q.type]}</div>
-            <div className="quest-main">
-              <div className="quest-label">{questLabel(q)}</div>
-              <Bar value={q.progress} max={q.target} tone={q.progress >= q.target ? 'good' : ''} />
+        <Label n="01">Daily quests</Label>
+        {s.quests?.list.map((q, i) => {
+          const done = q.progress >= q.target
+          return (
+            <div key={i} className={`quest ${done ? 'done' : ''}`}>
+              <div className="quest-icon">
+                <Icon name={done ? 'check' : QUEST_ICON[q.type]} size={18} />
+              </div>
+              <div>
+                <div className="quest-label">{questLabel(q)}</div>
+                <Bar value={q.progress} max={q.target} tone={done ? 'good' : ''} />
+              </div>
+              <div className="quest-count">
+                {q.progress}/{q.target}
+              </div>
             </div>
-            <div className="quest-count">
-              {q.progress}/{q.target}
-            </div>
-          </div>
-        ))}
-        <button className={`chest ${questsDone && !s.quests?.chestClaimed ? 'ready' : ''}`} disabled={!questsDone || s.quests?.chestClaimed} onClick={claimChest}>
-          {s.quests?.chestClaimed ? '🎉 Chest opened. See you tomorrow!' : questsDone ? '🎁 Open chest (+40 XP, chance of ❄️)' : '🔒 Finish all quests to open the chest'}
+          )
+        })}
+        <button
+          className={`chest ${questsDone && !s.quests?.chestClaimed ? 'ready' : ''} ${s.quests?.chestClaimed ? 'claimed' : ''}`}
+          disabled={!questsDone || s.quests?.chestClaimed}
+          onClick={claimChest}
+        >
+          <Icon name={s.quests?.chestClaimed ? 'check' : questsDone ? 'gift' : 'lock'} size={16} />
+          {s.quests?.chestClaimed ? 'Chest opened. New quests at midnight.' : questsDone ? 'Open chest: +40 XP and a chance of a freeze' : 'Finish all three to unlock the chest'}
         </button>
       </section>
 
-      <section className={`card incident ${incidentDone ? (s.daily?.correct ? 'won' : 'lost') : ''}`}>
-        <div className="card-head">
-          <h2>🚨 Daily Incident</h2>
-          <span className="pill">{incidentDone ? 'resolved' : '+25 XP · 1 attempt'}</span>
-        </div>
+      <section className="card incident-card">
+        <Label n="02">Daily incident</Label>
         {incident ? (
           <>
-            <h3>{incident.title}</h3>
-            <p className="muted clamp3">{incident.prompt}</p>
+            <div style={{ display: 'flex', gap: 8, marginBottom: 6 }}>
+              {incidentDone ? (
+                <span className={`tag ${s.daily?.correct ? 'good' : 'bad'}`}>{s.daily?.correct ? 'Resolved' : 'Missed'}</span>
+              ) : (
+                <span className="tag gold">+25 XP · one attempt</span>
+              )}
+            </div>
+            <div className="panel-title">{incident.title}</div>
+            <p className="muted small clamp3">{incident.prompt}</p>
             <button className="btn" onClick={() => go('daily')}>
-              {incidentDone ? (s.daily?.correct ? '✅ Solved. Review the breakdown' : '📖 See what went wrong') : 'Respond to incident →'}
+              {incidentDone ? 'Read the breakdown' : 'Respond'} <Icon name="arrow-right" size={15} />
             </button>
           </>
         ) : (
@@ -115,39 +161,45 @@ export function Home(): JSX.Element {
         )}
       </section>
 
-      <section className="card review-card">
-        <div className="card-head">
-          <h2>🧠 Spaced review</h2>
-        </div>
+      <section className="card">
+        <Label n="03">Spaced review</Label>
         <div className="big-num">{due}</div>
-        <p className="muted">{due ? 'cards due today. Reviews lock concepts into long-term memory.' : Object.keys(s.srs).length ? 'All caught up! New cards come due as days pass.' : 'Answer quiz questions to start filling your review deck.'}</p>
-        <button className="btn" onClick={() => go('review')} disabled={!Object.keys(s.srs).length}>
-          {due ? 'Start review' : 'Practice anyway'}
+        <p className="muted small">
+          {due
+            ? `card${due === 1 ? '' : 's'} due. Short, frequent recall is what makes this stick.`
+            : deckSize
+              ? 'Nothing due. Cards resurface on a 1–32 day schedule.'
+              : 'Your deck fills as you answer quiz questions.'}
+        </p>
+        <button className="btn" onClick={() => go('review')} disabled={!deckSize}>
+          {due ? 'Start review' : 'Practice anyway'} <Icon name="arrow-right" size={15} />
         </button>
       </section>
 
       <section className="card activity">
-        <div className="card-head">
-          <h2>Activity</h2>
-          <div className="stats-inline">
-            <span>
-              🔥 <b>{s.streak.count}</b> current
-            </span>
-            <span>
-              🏅 <b>{s.streak.best}</b> best
-            </span>
-            <span>
-              ❄️ <b>{s.streak.freezes}</b> freezes
-            </span>
-            <span>
-              📘 <b>
-                {doneCount}/{LESSONS.length}
-              </b>{' '}
-              lessons
-            </span>
-            <span>
-              ⭐ <b>{s.xp}</b> XP · Lv {lvl.level}
-            </span>
+        <Label n="04">Activity · 17 weeks</Label>
+        <div className="stats-row">
+          <div className="stat-cell">
+            <div className="readout-k">Current</div>
+            <div className="readout-v">{s.streak.count}d</div>
+          </div>
+          <div className="stat-cell">
+            <div className="readout-k">Best</div>
+            <div className="readout-v">{s.streak.best}d</div>
+          </div>
+          <div className="stat-cell">
+            <div className="readout-k">Lessons</div>
+            <div className="readout-v">
+              {doneCount}/{LESSONS.length}
+            </div>
+          </div>
+          <div className="stat-cell">
+            <div className="readout-k">Total XP</div>
+            <div className="readout-v">{s.xp}</div>
+          </div>
+          <div className="stat-cell">
+            <div className="readout-k">Level</div>
+            <div className="readout-v">{lvl.level}</div>
           </div>
         </div>
         <Heatmap days={s.days} goal={goal} />

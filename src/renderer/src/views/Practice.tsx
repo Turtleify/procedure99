@@ -1,6 +1,8 @@
 import { useRef, useState } from 'react'
 import type { Scenario } from '../../../shared/types'
 import { dateStr } from '../../../shared/dates'
+import { Label } from '../components/bits'
+import { Icon } from '../components/Icon'
 import { Mcq } from '../components/Mcq'
 import { SCENARIOS } from '../content/scenarios'
 import { availableScenarios, dailyScenario, LESSON_BY_ID, QUESTIONS } from '../lib/progress'
@@ -30,7 +32,9 @@ export function Review(): JSX.Element {
     const next = nextDueDate(srs)
     return (
       <div className="card center-card">
-        <div className="results-emoji">🧠</div>
+        <div className="results-mark good">
+          <Icon name="brain" size={28} />
+        </div>
         <h1>All caught up</h1>
         <p className="muted">
           {learned.length
@@ -62,7 +66,9 @@ export function Review(): JSX.Element {
   if (i >= queue.length) {
     return (
       <div className="card center-card">
-        <div className="results-emoji">{right === queue.length ? '💯' : '✅'}</div>
+        <div className={`results-mark ${right === queue.length ? 'gold' : 'good'}`}>
+          <Icon name={right === queue.length ? 'target' : 'check'} size={28} />
+        </div>
         <h1>{mode === 'due' ? 'Review complete' : 'Practice complete'}</h1>
         <div className="results-xp">+{xpNow - startXp} XP</div>
         <p className="muted">
@@ -85,12 +91,12 @@ export function Review(): JSX.Element {
     <div className="lesson">
       <div className="lesson-header">
         <button className="btn ghost" onClick={() => go('home')}>
-          ← Home
+          <Icon name="arrow-left" size={15} /> Today
         </button>
         <div className="lesson-titles">
-          <div className="eyebrow">
-            {mode === 'due' ? '🧠 Spaced review' : '🏋️ Practice'} · card {i + 1}/{queue.length} · box {box}/6
-          </div>
+          <Label bare>
+            {mode === 'due' ? 'Spaced review' : 'Practice'} · card {i + 1}/{queue.length} · box {box}/6
+          </Label>
           <h1>{lesson ? `${lesson.unit.icon} ${lesson.title}` : 'Review'}</h1>
         </div>
       </div>
@@ -142,29 +148,41 @@ export function Arena(): JSX.Element {
     return (
       <div className="arena">
         <div className="card arena-hero">
-          <div className="results-emoji">⚔️</div>
-          <h1>Tradeoff Arena</h1>
+          <Label>Tradeoff Arena</Label>
+          <h1>
+            Every choice is a <em>tradeoff</em>.
+          </h1>
           <p className="muted">
             Real-world scenarios. Pick the best tool or approach, then read why <i>every</i> option is right or wrong. That’s where the tradeoff thinking comes from.
           </p>
-          <div className="stats-inline center">
-            <span>
-              🏆 <b>{s.arena.wins}</b> rounds won
-            </span>
-            <span>
-              🎮 <b>{s.arena.played}</b> played
-            </span>
-            <span>
-              ✅ <b>{s.arena.correct}</b> correct answers
+          <div className="stats-row">
+            <div className="stat-cell">
+              <div className="readout-k">Rounds won</div>
+              <div className="readout-v">{s.arena.wins}</div>
+            </div>
+            <div className="stat-cell">
+              <div className="readout-k">Played</div>
+              <div className="readout-v">{s.arena.played}</div>
+            </div>
+            <div className="stat-cell">
+              <div className="readout-k">Correct</div>
+              <div className="readout-v">{s.arena.correct}</div>
+            </div>
+            <div className="stat-cell">
+              <div className="readout-k">Scenarios open</div>
+              <div className="readout-v">
+                {pool.length}/{SCENARIOS.length}
+              </div>
+            </div>
+          </div>
+          <div className="row" style={{ gap: 18, flexWrap: 'wrap' }}>
+            <button className="btn primary big" onClick={start}>
+              Start a round of {Math.min(ROUND, pool.length)} <Icon name="arrow-right" size={16} />
+            </button>
+            <span className="hint-text">
+              +8 XP per answer · +15 XP for 4/5{lockedCount > 0 ? ` · ${lockedCount} still locked` : ''}
             </span>
           </div>
-          <button className="btn primary big" onClick={start}>
-            Start a round ({Math.min(ROUND, pool.length)} scenarios)
-          </button>
-          <p className="muted small">
-            +8 XP per correct answer · +15 XP for winning (4/5 or better) · {pool.length} scenarios available
-            {lockedCount > 0 ? `, ${lockedCount} more unlock as you progress` : ''}
-          </p>
         </div>
       </div>
     )
@@ -173,7 +191,9 @@ export function Arena(): JSX.Element {
   if (i >= round.length) {
     return (
       <div className="card center-card">
-        <div className="results-emoji">{won ? '🏆' : '🛡️'}</div>
+        <div className={`results-mark ${won ? 'gold' : ''}`}>
+          <Icon name={won ? 'trophy' : 'swords'} size={28} />
+        </div>
         <h1>{won ? 'Round won!' : 'Round over'}</h1>
         <div className="results-xp">+{xpNow - startXp.current} XP</div>
         <p className="muted">
@@ -196,12 +216,12 @@ export function Arena(): JSX.Element {
     <div className="lesson">
       <div className="lesson-header">
         <button className="btn ghost" onClick={() => setRound(null)}>
-          ← Quit
+          <Icon name="x" size={15} /> Quit
         </button>
         <div className="lesson-titles">
-          <div className="eyebrow">
-            ⚔️ Scenario {i + 1}/{round.length} · {right} correct
-          </div>
+          <Label bare>
+            Arena · scenario {i + 1}/{round.length} · {right} correct
+          </Label>
           <h1>{sc.title}</h1>
         </div>
       </div>
@@ -242,10 +262,10 @@ export function DailyIncident(): JSX.Element {
     <div className="lesson">
       <div className="lesson-header">
         <button className="btn ghost" onClick={() => go('home')}>
-          ← Home
+          <Icon name="arrow-left" size={15} /> Today
         </button>
         <div className="lesson-titles">
-          <div className="eyebrow">🚨 Daily Incident · {today} · one attempt</div>
+          <Label bare>Daily incident · {today} · one attempt</Label>
           <h1>{sc.title}</h1>
         </div>
       </div>
@@ -253,13 +273,14 @@ export function DailyIncident(): JSX.Element {
         <div className="card">
           <p className="scenario-prompt">{sc.prompt}</p>
           <div className={`callout ${s.daily?.correct ? 'good' : 'bad'}`}>
-            {s.daily?.correct ? '✅ You resolved this incident today.' : '❌ You missed this one. Study the breakdown and come back tomorrow for a new incident.'}
+            {s.daily?.correct ? 'You resolved this incident today.' : 'You missed this one. Study the breakdown and come back tomorrow for a new incident.'}
           </div>
           <div className="breakdown">
             {sc.options.map((o) => (
               <div key={o.text} className={`breakdown-row ${o.correct ? 'correct' : ''}`}>
                 <div className="breakdown-opt">
-                  {o.correct ? '✅' : '✖️'} {o.text}
+                  <Icon name={o.correct ? 'check' : 'x'} size={15} stroke={2.2} className={o.correct ? 'good-text' : 'bad-text'} />
+                  {o.text}
                 </div>
                 <div className="muted small">{o.why}</div>
               </div>

@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react'
 import type { ByteLesson, ConceptLesson, LabLesson } from '../../../shared/types'
-import { CodeBlock, Html } from '../components/bits'
+import { CodeBlock, Html, Label } from '../components/bits'
+import { Icon } from '../components/Icon'
 import { Mcq } from '../components/Mcq'
 import { LESSON_BY_ID, LESSONS, qid, type FlatLesson } from '../lib/progress'
 import { useStore, type CompleteResult } from '../store'
@@ -31,12 +32,12 @@ function LessonHeader({ lesson, step, total, label }: { lesson: FlatLesson; step
   return (
     <div className="lesson-header">
       <button className="btn ghost" onClick={() => go('path')}>
-        ← Path
+        <Icon name="arrow-left" size={15} /> Path
       </button>
       <div className="lesson-titles">
-        <div className="eyebrow">
-          {lesson.unit.icon} Unit {lesson.unitIndex + 1}: {lesson.unit.title} · {label}
-        </div>
+        <Label bare>
+          Unit {String(lesson.unitIndex + 1).padStart(2, '0')} · {lesson.unit.title} · {label}
+        </Label>
         <h1>{lesson.title}</h1>
       </div>
       <div className="steps">
@@ -48,19 +49,21 @@ function LessonHeader({ lesson, step, total, label }: { lesson: FlatLesson; step
   )
 }
 
-function Results({ lesson, startXp, emoji, title, result, children }: { lesson: FlatLesson; startXp: number; emoji: string; title: string; result: CompleteResult | null; children?: ReactNode }): JSX.Element {
+function Results({ lesson, startXp, mark, tone, title, result, children }: { lesson: FlatLesson; startXp: number; mark: string; tone?: 'gold' | 'good'; title: string; result: CompleteResult | null; children?: ReactNode }): JSX.Element {
   const xpNow = useStore((st) => st.s.xp)
   const go = useStore((st) => st.go)
   const next = LESSONS[lesson.index + 1]
   return (
     <div className="card results">
-      <div className="results-emoji">{emoji}</div>
+      <div className={`results-mark ${tone ?? ''}`}>
+        <Icon name={mark} size={28} />
+      </div>
       <h1>{title}</h1>
       <div className="results-xp">+{xpNow - startXp} XP</div>
       {children}
       {result?.unitJustDone && (
         <div className="callout gold">
-          🏁 <b>Unit complete: {lesson.unit.title}!</b>
+          <b>Unit complete: {lesson.unit.title}.</b>
           {result.newTools.length > 0 && <> New tools in your Toolbox: {result.newTools.join(', ')}.</>}
         </div>
       )}
@@ -68,12 +71,12 @@ function Results({ lesson, startXp, emoji, title, result, children }: { lesson: 
       <div className="results-actions">
         {next && (
           <button className="btn primary big" onClick={() => go('lesson', { id: next.id })} autoFocus>
-            Next: {next.title} →
+            Next: {next.title} <Icon name="arrow-right" size={16} />
           </button>
         )}
         {result?.newTools.length ? (
           <button className="btn" onClick={() => go('toolbox')}>
-            🧰 Open Toolbox
+            <Icon name="wrench" size={15} /> Open Toolbox
           </button>
         ) : null}
         <button className="btn" onClick={() => go('home')}>
@@ -114,7 +117,7 @@ function ConceptPlayer({ lesson }: { lesson: Flat<ConceptLesson> }): JSX.Element
   if (phase === 'done') {
     const perfect = score === nQ
     return (
-      <Results lesson={lesson} startXp={startXp} emoji={perfect ? '💯' : score / nQ >= 0.6 ? '🎉' : '📚'} title={perfect ? 'Flawless!' : 'Lesson complete'} result={result}>
+      <Results lesson={lesson} startXp={startXp} mark={perfect ? 'target' : 'check'} tone={perfect ? 'gold' : 'good'} title={perfect ? 'Flawless.' : 'Lesson complete'} result={result}>
         <p className="muted">
           You got <b>{score}</b> of <b>{nQ}</b> right. Every question is now in your review deck and will come back when it’s due.
         </p>
@@ -133,16 +136,16 @@ function ConceptPlayer({ lesson }: { lesson: Flat<ConceptLesson> }): JSX.Element
         </div>
         <div className="lesson-nav">
           <button className="btn" disabled={card === 0} onClick={() => setCard(card - 1)}>
-            ← Back
+            <Icon name="arrow-left" size={15} /> Back
           </button>
-          <span className="muted small">← → arrow keys</span>
+          <span className="hint-text">← → to navigate</span>
           {card < nCards - 1 ? (
             <button className="btn primary" onClick={() => setCard(card + 1)}>
-              Next →
+              Next <Icon name="arrow-right" size={15} />
             </button>
           ) : (
             <button className="btn primary" onClick={() => setPhase('quiz')}>
-              Start quiz ({nQ} questions) →
+              Start quiz · {nQ} questions <Icon name="arrow-right" size={15} />
             </button>
           )}
         </div>
@@ -195,7 +198,7 @@ function BytePlayer({ lesson }: { lesson: Flat<ByteLesson> }): JSX.Element {
 
   if (phase === 'done') {
     return (
-      <Results lesson={lesson} startXp={startXp} emoji="🎤" title="Interview byte done" result={result}>
+      <Results lesson={lesson} startXp={startXp} mark="mic" tone="good" title="Byte complete" result={result}>
         <p className="muted">
           You covered <b>{covered}</b> of <b>{lesson.points.length}</b> key points. Your answer is saved, so come back later and see how it would change.
         </p>
@@ -207,10 +210,10 @@ function BytePlayer({ lesson }: { lesson: Flat<ByteLesson> }): JSX.Element {
     <div className="lesson">
       <LessonHeader lesson={lesson} step={phase === 'write' ? 0 : 1} total={2} label="Interview Byte" />
       <div className="card">
-        <div className="eyebrow">🎤 The interviewer asks…</div>
+        <Label n="Q">The interviewer asks</Label>
         <p className="byte-prompt">{lesson.prompt}</p>
         <button className="btn ghost small" onClick={() => setShowHints(!showHints)}>
-          {showHints ? 'Hide hints' : '💡 Show hints'}
+          <Icon name="lightbulb" size={14} /> {showHints ? 'Hide hints' : 'Show hints'}
         </button>
         {showHints && (
           <ul className="hints">
@@ -223,8 +226,8 @@ function BytePlayer({ lesson }: { lesson: Flat<ByteLesson> }): JSX.Element {
 
       {phase === 'write' ? (
         <div className="card">
-          <label className="eyebrow" htmlFor="byte-answer">
-            Your answer (talk it through like you would out loud)
+          <label htmlFor="byte-answer">
+            <Label n="A">Your answer — talk it through as you would out loud</Label>
           </label>
           <textarea id="byte-answer" className="byte-text" value={text} onChange={(e) => setText(e.target.value)} placeholder="First, I'd clarify… then…" autoFocus />
           <div className="lesson-nav">
@@ -237,7 +240,7 @@ function BytePlayer({ lesson }: { lesson: Flat<ByteLesson> }): JSX.Element {
                 setPhase('reveal')
               }}
             >
-              Reveal model answer →
+              Reveal model answer <Icon name="arrow-right" size={15} />
             </button>
           </div>
         </div>
@@ -245,16 +248,16 @@ function BytePlayer({ lesson }: { lesson: Flat<ByteLesson> }): JSX.Element {
         <>
           <div className="compare">
             <div className="card">
-              <div className="eyebrow">Your answer</div>
+              <Label>Your answer</Label>
               <div className="user-answer">{text}</div>
             </div>
             <div className="card model">
-              <div className="eyebrow">Model answer</div>
+              <Label n="B">Model answer</Label>
               <Html html={lesson.model} className="concept-body" />
             </div>
           </div>
           <div className="card">
-            <h3>Which key points did you cover? Be honest.</h3>
+            <Label n="C">Which key points did you cover? Be honest.</Label>
             <div className="checklist">
               {lesson.points.map((p, i) => (
                 <label key={p} className={`check ${checks[i] ? 'on' : ''}`}>
@@ -296,7 +299,7 @@ function LabPlayer({ lesson }: { lesson: Flat<LabLesson> }): JSX.Element {
 
   if (result) {
     return (
-      <Results lesson={lesson} startXp={startXp} emoji="🧪" title="Lab complete!" result={result}>
+      <Results lesson={lesson} startXp={startXp} mark="flask" tone="good" title="Lab complete" result={result}>
         <p className="muted">{lesson.outro}</p>
       </Results>
     )
@@ -313,7 +316,7 @@ function LabPlayer({ lesson }: { lesson: Flat<LabLesson> }): JSX.Element {
         <div key={i} className={`card lab-step ${checked[i] ? 'done' : ''}`}>
           <label className="lab-step-head">
             <input type="checkbox" checked={checked[i]} onChange={() => setChecked(checked.map((c, j) => (j === i ? !c : c)))} />
-            <span className="lab-num">{i + 1}</span>
+            <span className="lab-num">STEP {String(i + 1).padStart(2, '0')}</span>
             <h3>{step.title}</h3>
           </label>
           <p className="muted">{step.body}</p>

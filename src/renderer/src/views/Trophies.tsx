@@ -1,3 +1,4 @@
+import { Icon } from '../components/Icon'
 import { ACHIEVEMENTS } from '../lib/achievements'
 import { useStore } from '../store'
 
@@ -6,19 +7,25 @@ export function Trophies(): JSX.Element {
   const count = ACHIEVEMENTS.filter((a) => earned[a.id]).length
   return (
     <div>
-      <h1>Trophies</h1>
-      <p className="muted">
-        {count}/{ACHIEVEMENTS.length} unlocked
-      </p>
+      <div className="page-head">
+        <h1>
+          <em>Trophies</em>
+        </h1>
+        <p className="muted">
+          {count} of {ACHIEVEMENTS.length} earned.
+        </p>
+      </div>
       <div className="trophy-grid">
         {ACHIEVEMENTS.map((a) => {
           const date = earned[a.id]
           return (
             <div key={a.id} className={`trophy ${date ? 'earned' : ''}`}>
-              <div className="trophy-icon">{date ? a.icon : '🔒'}</div>
+              <div className="trophy-glyph">
+                <Icon name={date ? a.icon : 'lock'} size={19} />
+              </div>
               <div className="trophy-title">{a.title}</div>
               <div className="muted small">{a.desc}</div>
-              {date && <div className="trophy-date">{date}</div>}
+              {date && <div className="trophy-date">EARNED {date}</div>}
             </div>
           )
         })}

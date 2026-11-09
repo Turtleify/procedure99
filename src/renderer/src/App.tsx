@@ -1,6 +1,7 @@
 import { useEffect } from 'react'
 import { dateStr } from '../../shared/dates'
 import { Bar } from './components/bits'
+import { Icon } from './components/Icon'
 import { Confetti, Toasts, XpPops } from './components/Overlays'
 import { levelInfo } from './lib/levels'
 import { dueIds } from './lib/srs'
@@ -14,35 +15,24 @@ import { Toolbox } from './views/Toolbox'
 import { Trophies } from './views/Trophies'
 
 const NAV: { view: View; icon: string; label: string }[] = [
-  { view: 'home', icon: '🏠', label: 'Home' },
-  { view: 'path', icon: '🗺️', label: 'Path' },
-  { view: 'review', icon: '🧠', label: 'Review' },
-  { view: 'arena', icon: '⚔️', label: 'Arena' },
-  { view: 'toolbox', icon: '🧰', label: 'Toolbox' },
-  { view: 'trophies', icon: '🏆', label: 'Trophies' },
-  { view: 'settings', icon: '⚙️', label: 'Settings' }
+  { view: 'home', icon: 'house', label: 'Today' },
+  { view: 'path', icon: 'map', label: 'Path' },
+  { view: 'review', icon: 'brain', label: 'Review' },
+  { view: 'arena', icon: 'swords', label: 'Arena' },
+  { view: 'toolbox', icon: 'wrench', label: 'Toolbox' },
+  { view: 'trophies', icon: 'trophy', label: 'Trophies' },
+  { view: 'settings', icon: 'settings', label: 'Settings' }
 ]
 
+/** Drafting mark: a framed isometric block with registration ticks. */
 function Logo(): JSX.Element {
   return (
-    <svg width="28" height="28" viewBox="0 0 100 100" aria-hidden>
-      <defs>
-        <linearGradient id="lg" x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0" stopColor="#6c8cff" />
-          <stop offset="1" stopColor="#a064ff" />
-        </linearGradient>
-      </defs>
-      <circle cx="50" cy="50" r="48" fill="url(#lg)" />
-      <g stroke="#fff" strokeWidth="7" strokeLinecap="round">
-        <line x1="50" y1="30" x2="29" y2="68" />
-        <line x1="50" y1="30" x2="71" y2="68" />
-        <line x1="29" y1="68" x2="71" y2="68" />
-      </g>
-      <g fill="#fff">
-        <circle cx="50" cy="30" r="10" />
-        <circle cx="29" cy="68" r="10" />
-        <circle cx="71" cy="68" r="10" />
-      </g>
+    <svg width="34" height="34" viewBox="0 0 34 34" fill="none" aria-hidden>
+      <rect x="0.5" y="0.5" width="33" height="33" rx="3" stroke="#2a3f5e" />
+      <path d="M17 7 L26 12 L26 22 L17 27 L8 22 L8 12 Z" stroke="#ece6d8" strokeWidth="1.4" strokeLinejoin="round" />
+      <path d="M8 12 L17 17 L26 12 M17 17 V27" stroke="#ece6d8" strokeWidth="1.4" strokeLinejoin="round" />
+      <path d="M17 17 L26 12 L26 22 L17 27 Z" fill="#6ec3db" fillOpacity="0.85" />
+      <path d="M3 6 V3 H6 M28 3 H31 V6 M31 28 V31 H28 M6 31 H3 V28" stroke="#6ec3db" strokeWidth="1" />
     </svg>
   )
 }
@@ -53,19 +43,29 @@ function Sidebar(): JSX.Element {
   const due = useStore((st) => dueIds(st.s.srs, dateStr()).length)
   const active = view === 'lesson' ? 'path' : view === 'daily' ? 'home' : view
   return (
-    <nav className="sidebar">
+    <nav className="sidebar" aria-label="Main">
       <div className="brand">
         <Logo />
-        <span>Blueprint</span>
+        <div>
+          <div className="brand-name">Blueprint</div>
+          <div className="brand-sub">SYSTEM DESIGN</div>
+        </div>
       </div>
       {NAV.map((n) => (
-        <button key={n.view} className={`nav-item ${active === n.view ? 'active' : ''}`} onClick={() => go(n.view)}>
-          <span className="nav-icon">{n.icon}</span>
+        <button key={n.view} className={`nav-item ${active === n.view ? 'active' : ''}`} onClick={() => go(n.view)} aria-current={active === n.view ? 'page' : undefined}>
+          <Icon name={n.icon} size={17} />
           {n.label}
-          {n.view === 'review' && due > 0 && <span className="badge">{due}</span>}
+          {n.view === 'review' && due > 0 && (
+            <span className="badge" aria-label={`${due} due`}>
+              {due}
+            </span>
+          )}
         </button>
       ))}
-      <div className="sidebar-foot muted small">System design, one day at a time.</div>
+      <div className="sidebar-foot">
+        Sheet 01 of ∞<br />
+        One drawing a day
+      </div>
     </nav>
   )
 }
@@ -76,32 +76,49 @@ function TopBar(): JSX.Element {
   const day = s.days[dateStr()]
   const lvl = levelInfo(s.xp)
   const lit = !!day?.goalMet
+  const pad = (n: number): string => String(n).padStart(2, '0')
   return (
     <header className="topbar">
-      <button className={`stat streak ${lit ? 'lit' : ''}`} title={lit ? 'Goal met today' : 'Hit your daily goal to extend the streak'} onClick={() => go('home')}>
-        <span className="flame">🔥</span>
-        <b>{s.streak.count}</b>
+      <button className={`readout ${lit ? 'lit' : ''}`} onClick={() => go('home')} title={lit ? 'Goal met today' : 'Hit your daily goal to extend the streak'}>
+        <span className="readout-icon">
+          <Icon name="flame" size={20} />
+        </span>
+        <div>
+          <div className="readout-k">Streak</div>
+          <div className="readout-v">{pad(s.streak.count)} days</div>
+        </div>
       </button>
-      <div className="stat" title="Streak freezes protect a missed day automatically">
-        ❄️ <b>{s.streak.freezes}</b>
+      <div className="readout" title="Streak freezes protect a missed day automatically">
+        <span className="readout-icon">
+          <Icon name="snowflake" size={18} />
+        </span>
+        <div>
+          <div className="readout-k">Freezes</div>
+          <div className="readout-v">{pad(s.streak.freezes)}</div>
+        </div>
       </div>
-      <div className="stat goal" title="Today's XP vs daily goal">
-        🎯
-        <div className="goal-mini">
+      <div className="readout" title="Today's XP vs daily goal">
+        <div>
+          <div className="readout-k">Today</div>
+          <div className="readout-v">
+            {day?.xp ?? 0}
+            <span className="muted"> / {s.settings.dailyGoal} XP</span>
+          </div>
           <Bar value={day?.xp ?? 0} max={s.settings.dailyGoal} tone={lit ? 'good' : 'fire'} />
-          <span className="small">
-            {day?.xp ?? 0}/{s.settings.dailyGoal}
-          </span>
         </div>
       </div>
       <div className="spacer" />
       <div className="level">
-        <div className="level-badge">Lv {lvl.level}</div>
+        <div>
+          <div className="readout-k">Level</div>
+          <div className="level-num">{lvl.level}</div>
+        </div>
         <div className="level-info">
-          <div className="small">
-            <b>{lvl.title}</b> · {s.xp} XP
+          <div className="level-title">
+            {lvl.title}
+            <span>{s.xp} XP</span>
           </div>
-          <Bar value={lvl.into} max={lvl.need} />
+          <Bar value={lvl.into} max={lvl.need} tone="paper" />
         </div>
         <XpPops />
       </div>
@@ -153,7 +170,7 @@ export default function App(): JSX.Element {
     document.querySelector('.content')?.scrollTo(0, 0)
   }, [view, params])
 
-  if (!ready) return <div className="boot">Loading…</div>
+  if (!ready) return <div className="boot">LOADING SHEET…</div>
 
   return (
     <div className="shell">

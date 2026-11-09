@@ -33,13 +33,13 @@ export function questLabel(q: Quest): string {
 }
 
 export const QUEST_ICON: Record<QuestType, string> = {
-  xp: '⭐',
-  lesson: '📘',
-  review: '🧠',
-  arena: '⚔️',
-  perfect: '💯',
-  daily: '🚨',
-  tool: '🧰'
+  xp: 'star',
+  lesson: 'book-open',
+  review: 'brain',
+  arena: 'swords',
+  perfect: 'target',
+  daily: 'siren',
+  tool: 'wrench'
 }
 
 export interface QuestContext {

@@ -6,7 +6,7 @@ export const CURRICULUM: Unit[] = [
     id: 'u1',
     title: 'Foundations',
     subtitle: 'Servers, and the three ways they fail',
-    icon: '🖥️',
+    icon: 'server',
     color: '#6c8cff',
     lessons: [
       {
@@ -31,7 +31,7 @@ export const CURRICULUM: Unit[] = [
           {
             title: 'The single-server starting point',
             body: `<p>Every system starts small: app + database on <b>one machine</b>. It's cheap and simple, and that's fine for a prototype.</p>
-<div class="callout">⚠️ But it is a <b>single point of failure (SPOF)</b>: one machine dying takes down everything, and its CPU/RAM are finite.</div>`
+<div class="callout">But it is a <b>single point of failure (SPOF)</b>: one machine dying takes down everything, and its CPU/RAM are finite.</div>`
           },
           {
             title: 'So what is "system design"?',
@@ -106,7 +106,7 @@ client ─▶ LB ──▶ app-2 ──▶ DB
           {
             title: 'Replication ≠ backup',
             body: `<p>If someone runs <code>DELETE FROM users;</code>, replication <b>faithfully copies the delete</b> to every replica within milliseconds.</p>
-<div class="callout">✅ Replicas protect against <b>machine</b> failure.<br/>✅ Backups protect against <b>human/software</b> failure (bad deploys, corruption, deletes).<br/>You need both.</div>`
+<div class="callout">Replicas protect against <b>machine</b> failure.<br/>Backups protect against <b>human/software</b> failure (bad deploys, corruption, deletes).<br/>You need both.</div>`
           }
         ],
         quiz: [
@@ -229,7 +229,7 @@ client ─▶ LB ──▶ app-2 ──▶ DB
     id: 'u2',
     title: 'Requirements',
     subtitle: 'Know what you are building before you build it',
-    icon: '📋',
+    icon: 'clipboard',
     color: '#4fc3f7',
     lessons: [
       {
@@ -392,7 +392,7 @@ peak ≈ 2–3× average       ≈ 2,000–3,000 QPS</pre>
     id: 'u3',
     title: 'Architecture & Scaling',
     subtitle: 'Monoliths, microservices, up vs out',
-    icon: '🏗️',
+    icon: 'layers',
     color: '#a06cff',
     lessons: [
       {
@@ -404,14 +404,14 @@ peak ≈ 2–3× average       ≈ 2,000–3,000 QPS</pre>
           {
             title: 'The monolith',
             body: `<p>One codebase, <b>one deployable unit</b>. All features (users, orders, payments) run in the same process.</p>
-<ul><li>✅ Simple to develop, test, debug and deploy</li><li>✅ Function calls instead of network calls</li><li>✅ Easy ACID transactions across features</li>
-<li>❌ Scales as one unit: can't scale just the hot part</li><li>❌ Big teams step on each other; one bug can take down everything</li></ul>`
+<ul><li>+ Simple to develop, test, debug and deploy</li><li class="pro">Function calls instead of network calls</li><li class="pro">Easy ACID transactions across features</li>
+<li class="con">Scales as one unit: can't scale just the hot part</li><li class="con">Big teams step on each other; one bug can take down everything</li></ul>`
           },
           {
             title: 'Microservices',
             body: `<p>Many small services, each owning <b>one business capability and its own data</b>, deployed independently and talking over the network (HTTP/gRPC/queues).</p>
-<ul><li>✅ Independent deploys, scaling and tech choices per service</li><li>✅ Teams own services end-to-end</li><li>✅ Fault isolation (if done well)</li>
-<li>❌ Network latency and partial failures everywhere</li><li>❌ Distributed transactions (sagas), data consistency is hard</li><li>❌ Heavy ops: service discovery, tracing, CI/CD per service</li></ul>`
+<ul><li class="pro">Independent deploys, scaling and tech choices per service</li><li class="pro">Teams own services end-to-end</li><li class="pro">Fault isolation (if done well)</li>
+<li class="con">Network latency and partial failures everywhere</li><li class="con">Distributed transactions (sagas), data consistency is hard</li><li class="con">Heavy ops: service discovery, tracing, CI/CD per service</li></ul>`
           },
           {
             title: 'When to split',
@@ -461,14 +461,14 @@ peak ≈ 2–3× average       ≈ 2,000–3,000 QPS</pre>
           {
             title: 'Vertical scaling (scale UP)',
             body: `<p>Buy a <b>bigger machine</b>: more CPU, RAM, faster disk.</p>
-<ul><li>✅ No code changes, simple</li><li>✅ Great for databases (no distribution headaches)</li>
-<li>❌ Hard ceiling (the biggest box money can buy)</li><li>❌ Cost grows faster than capacity at the high end</li><li>❌ Still a single point of failure; resizing often means downtime</li></ul>`
+<ul><li class="pro">No code changes, simple</li><li class="pro">Great for databases (no distribution headaches)</li>
+<li class="con">Hard ceiling (the biggest box money can buy)</li><li class="con">Cost grows faster than capacity at the high end</li><li class="con">Still a single point of failure; resizing often means downtime</li></ul>`
           },
           {
             title: 'Horizontal scaling (scale OUT)',
             body: `<p>Add <b>more machines</b> and spread the work.</p>
-<ul><li>✅ Practically unlimited, uses cheap commodity machines</li><li>✅ Fault tolerant: lose one, the rest carry on</li><li>✅ Elastic: autoscale up and down with traffic</li>
-<li>❌ Needs a load balancer and <b>stateless</b> servers</li><li>❌ Much harder for stateful systems like databases (replication, sharding)</li></ul>`
+<ul><li class="pro">Practically unlimited, uses cheap commodity machines</li><li class="pro">Fault tolerant: lose one, the rest carry on</li><li class="pro">Elastic: autoscale up and down with traffic</li>
+<li class="con">Needs a load balancer and <b>stateless</b> servers</li><li class="con">Much harder for stateful systems like databases (replication, sharding)</li></ul>`
           },
           {
             title: 'What real systems do',
@@ -531,7 +531,7 @@ peak ≈ 2–3× average       ≈ 2,000–3,000 QPS</pre>
     id: 'u4',
     title: 'Traffic',
     subtitle: 'Requests, load balancers, and state',
-    icon: '⚖️',
+    icon: 'network',
     color: '#3ddc97',
     lessons: [
       {
@@ -805,7 +805,7 @@ docker compose exec lb nginx -s reload`
     id: 'u5',
     title: 'Data Modeling',
     subtitle: 'Access patterns, SQL vs NoSQL',
-    icon: '🗄️',
+    icon: 'database',
     color: '#ffb74d',
     lessons: [
       {
@@ -869,8 +869,8 @@ INDEX posts(user_id, created_at)</pre>`
           {
             title: 'SQL (relational)',
             body: `<p><b>Tables, schemas, joins, ACID transactions.</b> PostgreSQL, MySQL.</p>
-<ul><li>✅ Strong consistency & multi-row transactions (money!)</li><li>✅ Powerful queries, joins, constraints</li><li>✅ Mature tooling</li>
-<li>❌ Schema changes need migrations</li><li>❌ Scaling <i>writes</i> beyond one primary means sharding, which is manual or needs extra tooling (Vitess, Citus)</li></ul>`
+<ul><li class="pro">Strong consistency & multi-row transactions (money!)</li><li class="pro">Powerful queries, joins, constraints</li><li class="pro">Mature tooling</li>
+<li class="con">Schema changes need migrations</li><li class="con">Scaling <i>writes</i> beyond one primary means sharding, which is manual or needs extra tooling (Vitess, Citus)</li></ul>`
           },
           {
             title: 'NoSQL families',
@@ -887,9 +887,9 @@ INDEX posts(user_id, created_at)</pre>`
           },
           {
             title: 'Myths',
-            body: `<ul><li>❌ "NoSQL is faster." It's faster <i>for the access patterns it was modeled for</i>, and painful for others.</li>
-<li>❌ "SQL doesn't scale." Postgres/MySQL on big hardware plus replicas handles enormous load; sharded MySQL powers YouTube-scale systems.</li>
-<li>❌ "NoSQL has no transactions." MongoDB and DynamoDB support transactions, with limits.</li></ul>`
+            body: `<ul><li class="con">"NoSQL is faster." It's faster <i>for the access patterns it was modeled for</i>, and painful for others.</li>
+<li class="con">"SQL doesn't scale." Postgres/MySQL on big hardware plus replicas handles enormous load; sharded MySQL powers YouTube-scale systems.</li>
+<li class="con">"NoSQL has no transactions." MongoDB and DynamoDB support transactions, with limits.</li></ul>`
           }
         ],
         quiz: [
@@ -956,7 +956,7 @@ INDEX posts(user_id, created_at)</pre>`
     id: 'u6',
     title: 'Indexes',
     subtitle: 'Making queries fast',
-    icon: '🔎',
+    icon: 'search',
     color: '#f06292',
     lessons: [
       {
@@ -973,13 +973,13 @@ INDEX posts(user_id, created_at)</pre>`
           {
             title: 'B-trees',
             body: `<p>Most relational indexes are <b>B-trees</b> (B+trees): balanced, shallow trees. A lookup is O(log n): a few page reads even for billions of rows.</p>
-<ul><li>✅ Equality: <code>WHERE email = ?</code></li><li>✅ Ranges: <code>WHERE created_at &gt; ?</code></li><li>✅ Sorting: <code>ORDER BY created_at</code></li>
-<li>❌ <code>LIKE '%term'</code> (leading wildcard) can't use it</li></ul>`
+<ul><li class="pro">Equality: <code>WHERE email = ?</code></li><li class="pro">Ranges: <code>WHERE created_at &gt; ?</code></li><li class="pro">Sorting: <code>ORDER BY created_at</code></li>
+<li class="con"><code>LIKE '%term'</code> (leading wildcard) can't use it</li></ul>`
           },
           {
             title: 'Composite indexes: leftmost prefix',
             body: `<p>An index on <code>(country, city)</code> is sorted by country, then city within each country.</p>
-<ul><li>✅ <code>WHERE country = 'FR'</code></li><li>✅ <code>WHERE country = 'FR' AND city = 'Paris'</code></li><li>✅ <code>WHERE country = 'FR' ORDER BY city</code></li><li>❌ <code>WHERE city = 'Paris'</code> alone (like looking up a phone book by first name)</li></ul>`
+<ul><li class="pro"><code>WHERE country = 'FR'</code></li><li class="pro"><code>WHERE country = 'FR' AND city = 'Paris'</code></li><li class="pro"><code>WHERE country = 'FR' ORDER BY city</code></li><li class="con"><code>WHERE city = 'Paris'</code> alone (like looking up a phone book by first name)</li></ul>`
           },
           {
             title: 'Indexes are not free',
@@ -1083,7 +1083,7 @@ EXPLAIN ANALYZE SELECT * FROM users WHERE age = 30;`
     id: 'u7',
     title: 'Caching',
     subtitle: 'Fast answers and their sharp edges',
-    icon: '⚡',
+    icon: 'zap',
     color: '#ff8a3d',
     lessons: [
       {
@@ -1106,7 +1106,7 @@ if miss:
     value = db.query(...)
     cache.set(key, value, ttl=300)
 return value</pre>
-<p>✅ Only caches what's actually requested; cache failure ≠ outage. ❌ First request is slow; data can go stale until TTL/invalidation.</p>`
+<p><b>Pro:</b> only caches what's actually requested; cache failure ≠ outage. <b>Con:</b> first request is slow; data can go stale until TTL/invalidation.</p>`
           },
           {
             title: 'Read-through & write strategies',
@@ -1313,7 +1313,7 @@ process.exit(0)`
     id: 'u8',
     title: 'Replication & Sharding',
     subtitle: 'More copies, more pieces',
-    icon: '🧬',
+    icon: 'copy',
     color: '#5cc8ff',
     lessons: [
       {
@@ -1330,8 +1330,8 @@ process.exit(0)`
           },
           {
             title: 'Synchronous vs asynchronous',
-            body: `<ul><li><b>Synchronous</b>: primary waits for a replica to confirm before acknowledging the write. ✅ No data loss on failover. ❌ Slower writes; a slow replica stalls writes.</li>
-<li><b>Asynchronous</b>: primary acknowledges immediately, replicates after. ✅ Fast. ❌ Recent writes can be <b>lost</b> on failover; replicas <b>lag</b>.</li></ul>
+            body: `<ul><li><b>Synchronous</b>: primary waits for a replica to confirm before acknowledging the write. <b>Pro:</b> no data loss on failover. <b>Con:</b> slower writes; a slow replica stalls writes.</li>
+<li><b>Asynchronous</b>: primary acknowledges immediately, replicates after. <b>Pro:</b> fast. <b>Con:</b> recent writes can be <b>lost</b> on failover; replicas <b>lag</b>.</li></ul>
 <p>Common compromise: <b>semi-sync</b>, where at least one replica must confirm and the rest are async.</p>`
           },
           {
@@ -1502,7 +1502,7 @@ docker network rm lab`
     id: 'u9',
     title: 'Capstone',
     subtitle: 'The design we made so far',
-    icon: '🏛️',
+    icon: 'landmark',
     color: '#ffd166',
     lessons: [
       {

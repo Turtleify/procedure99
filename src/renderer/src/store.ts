@@ -78,14 +78,14 @@ function ensureDay(d: AppState, fx: Fx): void {
   if (r.frozenDays.length) {
     d.days = markFrozen(d.days, r.frozenDays)
     fx.toasts.push({
-      icon: '❄️',
+      icon: 'snowflake',
       title: `Streak freeze used (${r.frozenDays.length})`,
       body: `Your ${r.streak.count}-day streak survived. Hit today's goal to keep it going.`,
       tone: 'ice'
     })
   }
   if (r.lost > 0) {
-    fx.toasts.push({ icon: '💔', title: `Lost a ${r.lost}-day streak`, body: 'Start a new one today.', tone: 'bad' })
+    fx.toasts.push({ icon: 'heart-crack', title: `Lost a ${r.lost}-day streak`, body: 'Start a new one today.', tone: 'bad' })
   }
   d.streak = r.streak
   if (!d.quests || d.quests.date !== t) {
@@ -104,7 +104,7 @@ function questEvent(d: AppState, fx: Fx, ev: QuestEvent, n = 1): void {
   d.quests = board
   for (const q of justCompleted) fx.toasts.push({ icon: QUEST_ICON[q.type], title: 'Quest complete', body: questLabel(q), tone: 'good' })
   if (!wasDone && allQuestsDone(board) && !board.chestClaimed) {
-    fx.toasts.push({ icon: '🎁', title: 'All quests done!', body: 'Open your chest on the Home screen.', tone: 'gold' })
+    fx.toasts.push({ icon: 'gift', title: 'All quests done!', body: 'Open your chest on the Home screen.', tone: 'gold' })
   }
 }
 
@@ -116,8 +116,8 @@ function checkGoal(d: AppState, fx: Fx): void {
   const r = registerGoal(d.streak, t)
   d.streak = r.streak
   fx.confetti = true
-  fx.toasts.push({ icon: '🔥', title: `Daily goal hit! ${r.streak.count}-day streak`, body: 'Streak is safe until tomorrow.', tone: 'fire' })
-  if (r.earnedFreeze) fx.toasts.push({ icon: '❄️', title: 'Earned a streak freeze', body: 'It auto-protects a missed day.', tone: 'ice' })
+  fx.toasts.push({ icon: 'flame', title: `Daily goal hit! ${r.streak.count}-day streak`, body: 'Streak is safe until tomorrow.', tone: 'fire' })
+  if (r.earnedFreeze) fx.toasts.push({ icon: 'snowflake', title: 'Earned a streak freeze', body: 'It auto-protects a missed day.', tone: 'ice' })
 }
 
 function gainXP(d: AppState, fx: Fx, n: number): void {
@@ -177,7 +177,7 @@ export const useStore = create<Store>((set, get) => {
     const after = levelInfo(d.xp)
     if (after.level > before.level) {
       fx.confetti = true
-      fx.toasts.push({ icon: '🆙', title: `Level ${after.level}!`, body: `You're now a ${after.title}.`, tone: 'gold' })
+      fx.toasts.push({ icon: 'chevrons-up', title: `Level ${after.level}!`, body: `You're now a ${after.title}.`, tone: 'gold' })
     }
     for (const a of ACHIEVEMENTS) {
       if (!d.achievements[a.id] && a.check(d)) {
@@ -323,7 +323,7 @@ export const useStore = create<Store>((set, get) => {
         if (win) {
           d.arena.wins++
           gainXP(d, fx, 15)
-          fx.toasts.push({ icon: '⚔️', title: 'Round won! +15 XP', tone: 'good' })
+          fx.toasts.push({ icon: 'swords', title: 'Round won! +15 XP', tone: 'good' })
         }
       })
       return win
@@ -358,7 +358,7 @@ export const useStore = create<Store>((set, get) => {
         fx.confetti = true
         if (Math.random() < 0.25 && d.streak.freezes < MAX_FREEZES) {
           d.streak.freezes++
-          fx.toasts.push({ icon: '❄️', title: 'Chest bonus: streak freeze!', tone: 'ice' })
+          fx.toasts.push({ icon: 'snowflake', title: 'Chest bonus: streak freeze!', tone: 'ice' })
         }
       })
     },

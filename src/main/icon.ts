@@ -33,12 +33,11 @@ export function makeIcon(size: number, accent?: [number, number, number]): Nativ
       const py = (y + 0.5) / size
       const bgA = clamp01((0.48 - Math.hypot(px - 0.5, py - 0.5)) * size + 0.5)
 
-      // vertical gradient indigo -> violet (or a custom accent, e.g. for the tray "done" state)
-      const top = accent ?? [108, 140, 255]
-      const bottom = accent ? accent.map((c) => c * 0.75) : [160, 100, 255]
-      let r = lerp(top[0], bottom[0], py)
-      let g = lerp(top[1], bottom[1], py)
-      let b = lerp(top[2], bottom[2], py)
+      // flat ink-blue disc (or a custom accent, e.g. for the tray "done" state)
+      const base = accent ?? [20, 34, 56]
+      let r = base[0]
+      let g = base[1]
+      let b = base[2]
 
       let fg = 0
       for (const [i, j] of SEGMENTS) {
@@ -47,9 +46,11 @@ export function makeIcon(size: number, accent?: [number, number, number]): Nativ
       for (const n of NODES) {
         fg = Math.max(fg, clamp01((0.1 - Math.hypot(px - n[0], py - n[1])) * size + 0.5))
       }
-      r = lerp(r, 255, fg)
-      g = lerp(g, 255, fg)
-      b = lerp(b, 255, fg)
+      // paper-colored glyph
+      r = lerp(r, 236, fg)
+      g = lerp(g, 230, fg)
+      b = lerp(b, 216, fg)
+      void py
 
       // premultiplied BGRA
       const i = (y * size + x) * 4

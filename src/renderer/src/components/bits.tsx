@@ -1,30 +1,47 @@
 import { useEffect, useState, type ReactNode } from 'react'
+import { Icon } from './Icon'
 
 /** Renders trusted, app-authored HTML from the content files. */
 export function Html({ html, className }: { html: string; className?: string }): JSX.Element {
   return <div className={className} dangerouslySetInnerHTML={{ __html: html }} />
 }
 
-export function ProgressRing({ value, max, size = 120, stroke = 10, children }: { value: number; max: number; size?: number; stroke?: number; children?: ReactNode }): JSX.Element {
-  const r = (size - stroke) / 2
-  const c = 2 * Math.PI * r
-  const pct = Math.max(0, Math.min(1, max ? value / max : 0))
+/** Mono uppercase section label with optional index number and trailing hairline. */
+export function Label({ n, children, bare }: { n?: string; children: ReactNode; bare?: boolean }): JSX.Element {
   return (
-    <div className="ring" style={{ width: size, height: size }}>
+    <div className={`label ${bare ? 'bare' : ''}`}>
+      {n && <span className="num">{n}</span>}
+      <span>{children}</span>
+    </div>
+  )
+}
+
+/** Gauge made of tick marks rather than a smooth arc — reads like an instrument dial. */
+export function ProgressRing({ value, max, size = 168, ticks = 40, children }: { value: number; max: number; size?: number; ticks?: number; children?: ReactNode }): JSX.Element {
+  const pct = Math.max(0, Math.min(1, max ? value / max : 0))
+  const lit = Math.round(pct * ticks)
+  const c = size / 2
+  const rOuter = size / 2 - 2
+  const rInner = rOuter - 12
+  return (
+    <div className="ring" style={{ width: size, height: size }} role="img" aria-label={`${value} of ${max}`}>
       <svg width={size} height={size}>
-        <circle cx={size / 2} cy={size / 2} r={r} className="ring-track" strokeWidth={stroke} fill="none" />
-        <circle
-          cx={size / 2}
-          cy={size / 2}
-          r={r}
-          className={`ring-fill ${pct >= 1 ? 'done' : ''}`}
-          strokeWidth={stroke}
-          fill="none"
-          strokeDasharray={c}
-          strokeDashoffset={c * (1 - pct)}
-          strokeLinecap="round"
-          transform={`rotate(-90 ${size / 2} ${size / 2})`}
-        />
+        {Array.from({ length: ticks }, (_, i) => {
+          const a = (i / ticks) * Math.PI * 2 - Math.PI / 2
+          const major = i % 5 === 0
+          const r1 = major ? rInner - 4 : rInner
+          return (
+            <line
+              key={i}
+              x1={c + Math.cos(a) * r1}
+              y1={c + Math.sin(a) * r1}
+              x2={c + Math.cos(a) * rOuter}
+              y2={c + Math.sin(a) * rOuter}
+              className={`ring-tick ${i < lit ? 'on' : ''} ${pct >= 1 ? 'done' : ''}`}
+              strokeWidth={major ? 2 : 1.5}
+            />
+          )
+        })}
       </svg>
       <div className="ring-center">{children}</div>
     </div>
@@ -49,13 +66,9 @@ export function CodeBlock({ code }: { code: string }): JSX.Element {
   }, [copied])
   return (
     <div className="code">
-      <button
-        className="code-copy"
-        onClick={() => {
-          void navigator.clipboard.writeText(code).then(() => setCopied(true))
-        }}
-      >
-        {copied ? 'Copied ✓' : 'Copy'}
+      <button className="code-copy" onClick={() => void navigator.clipboard.writeText(code).then(() => setCopied(true))}>
+        <Icon name={copied ? 'check' : 'copy'} size={12} />
+        {copied ? 'Copied' : 'Copy'}
       </button>
       <pre>
         <code>{code}</code>
@@ -74,9 +87,9 @@ export function Modal({ onClose, children }: { onClose(): void; children: ReactN
   }, [onClose])
   return (
     <div className="modal-backdrop" onClick={onClose}>
-      <div className="modal" onClick={(e) => e.stopPropagation()}>
+      <div className="modal" role="dialog" aria-modal="true" onClick={(e) => e.stopPropagation()}>
         <button className="modal-close" onClick={onClose} aria-label="Close">
-          ✕
+          <Icon name="x" />
         </button>
         {children}
       </div>
