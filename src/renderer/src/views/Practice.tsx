@@ -97,13 +97,14 @@ export function Review(): JSX.Element {
           <Label bare>
             {mode === 'due' ? 'Spaced review' : 'Practice'} · card {i + 1}/{queue.length} · box {box}/6
           </Label>
-          <h1>{lesson ? `${lesson.unit.icon} ${lesson.title}` : 'Review'}</h1>
+          <h1>{lesson ? lesson.title : 'Review'}</h1>
         </div>
       </div>
       <div className="card">
         <Mcq
           key={id + i}
           prompt={q.q}
+          code={q.code}
           options={q.options.map((text, j) => ({ text, correct: j === q.answer }))}
           explain={q.explain}
           onAnswer={(c) => {

@@ -839,6 +839,38 @@ button.readout:hover {
   border-radius: var(--r);
   color: var(--cyan);
 }
+button.next-up.tools-next {
+  all: unset;
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  width: 100%;
+  margin-top: 10px;
+  padding: 10px 12px;
+  border-radius: var(--r);
+  border: 1px solid transparent;
+  cursor: pointer;
+  transition:
+    background 0.12s,
+    border-color 0.12s;
+}
+button.next-up.tools-next > div:nth-child(2) {
+  flex: 1;
+}
+button.next-up.tools-next .glyph {
+  color: var(--good);
+  background: var(--lime-dim);
+  border-color: transparent;
+}
+button.next-up.tools-next:hover {
+  background: var(--ink-3);
+  border-color: var(--rule-2);
+}
+button.next-up.tools-next:focus-visible {
+  outline: 2px solid var(--cyan);
+  outline-offset: 2px;
+}
 .hero-goal {
   display: flex;
   flex-direction: column;
@@ -1032,6 +1064,26 @@ button.readout:hover {
 }
 .unit.locked {
   opacity: 0.45;
+}
+.unit.module .unit-num b {
+  font-size: 46px;
+}
+.module-req {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 8px;
+  font-size: 12.5px;
+  color: var(--muted);
+}
+.unit.locked .module-req {
+  color: var(--paper-dim);
+  font-weight: 600;
+}
+.tag.learned {
+  color: var(--good);
+  border-color: var(--good);
+  background: var(--lime-dim);
 }
 .unit-body {
   border-left: 1px solid var(--rule-2);
@@ -1275,6 +1327,21 @@ table.mini th {
   font-size: 27px;
   line-height: 1.25;
   margin-bottom: 22px;
+}
+/* "read the snippet" questions */
+.mcq-code {
+  font-family: var(--font-code);
+  font-size: 13px;
+  line-height: 1.55;
+  background: var(--ink-0);
+  border: 1px solid var(--rule);
+  border-left: 3px solid var(--lime);
+  border-radius: var(--r);
+  padding: 14px 16px;
+  margin: -8px 0 22px;
+  overflow-x: auto;
+  white-space: pre;
+  color: var(--paper);
 }
 .scenario-prompt {
   font-family: var(--font-ui);
@@ -1647,11 +1714,13 @@ input[type='checkbox'] {
 /* toolbox encyclopedia: filters */
 .toolbox-filters {
   display: flex;
+  flex-wrap: wrap;
   gap: 10px;
   margin-bottom: 14px;
 }
 .search-box {
-  flex: 1;
+  flex: 1 1 260px;
+  min-width: 0;
   display: flex;
   align-items: center;
   gap: 10px;
@@ -1679,6 +1748,8 @@ input[type='checkbox'] {
   margin: 0;
 }
 .unit-select {
+  flex: 0 1 auto;
+  max-width: 100%;
   height: 42px;
   padding: 0 12px;
   background: var(--ink-2);
@@ -1696,39 +1767,116 @@ input[type='checkbox'] {
 .phase-blurb {
   margin: 0 0 12px;
 }
-.cat-jump {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-  margin-bottom: 22px;
+/* toolbox: category index pinned to the far left, page body beside it */
+.content-inner:has(> .toolbox.with-nav) {
+  max-width: none;
 }
-.cat-chip {
+.toolbox.with-nav {
+  display: grid;
+  grid-template-columns: 232px minmax(0, 1fr);
+  gap: 36px;
+  align-items: start;
+}
+.toolbox-body {
+  min-width: 0;
+}
+.toolbox.with-nav .toolbox-body {
+  width: 100%;
+  max-width: 1100px;
+  margin: 0 auto;
+}
+.cat-nav {
+  position: sticky;
+  top: 0;
+  max-height: calc(100vh - 60px - 34px);
+  margin-top: 4px;
+  overflow-y: auto;
+  padding: 4px 6px 12px 0;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  scrollbar-width: none; /* scrollbar appears only on hover */
+}
+.cat-nav:hover {
+  scrollbar-width: thin;
+  scrollbar-color: var(--rule-2) transparent;
+}
+.cat-nav-phase {
+  font-size: 11px;
+  font-weight: 650;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--faint);
+  padding: 0 10px 6px;
+}
+.cat-nav-item {
   all: unset;
-  display: inline-flex;
+  box-sizing: border-box;
+  width: 100%;
+  display: flex;
   align-items: center;
-  gap: 6px;
-  padding: 5px 10px;
-  border: 1px solid var(--rule-2);
-  border-radius: 999px;
-  font-size: 12.5px;
+  gap: 10px;
+  padding: 7px 10px;
+  border-radius: var(--r);
+  border-left: 2px solid transparent;
+  font-size: 13.5px;
   color: var(--paper-dim);
-  background: var(--ink-2);
   cursor: pointer;
   transition:
-    border-color 0.12s,
-    background 0.12s;
+    background 0.12s,
+    color 0.12s;
 }
-.cat-chip:hover {
-  border-color: var(--good);
+.cat-nav-item:hover {
+  background: var(--ink-3);
+  color: var(--paper);
+}
+.cat-nav-item.on {
   background: var(--lime-dim);
+  border-left-color: var(--lime);
+  color: var(--paper);
+  font-weight: 600;
 }
-.cat-chip span {
+.cat-nav-item svg {
+  flex-shrink: 0;
+  color: var(--muted);
+}
+.cat-nav-item.on svg {
+  color: var(--good);
+}
+.cat-nav-name {
+  flex: 1;
+  min-width: 0;
+  line-height: 1.3;
+}
+.cat-nav-count {
+  font-size: 12px;
   color: var(--faint);
   font-variant-numeric: tabular-nums;
 }
-.cat-chip:focus-visible {
+.cat-nav-item:focus-visible {
   outline: 2px solid var(--cyan);
-  outline-offset: 2px;
+  outline-offset: -2px;
+}
+.toolbox-main .tool-grid {
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+}
+/* keep the five Toolbox tabs on one line next to the category column */
+@media (max-width: 1440px) {
+  .toolbox .tab {
+    padding: 10px 11px;
+    gap: 6px;
+    white-space: nowrap;
+  }
+}
+@media (max-width: 1120px) {
+  .toolbox .tab .hint-text,
+  .toolbox .tab svg {
+    display: none;
+  }
+  .toolbox.with-nav {
+    grid-template-columns: 190px minmax(0, 1fr);
+    gap: 22px;
+  }
 }
 .filter-note {
   display: flex;
@@ -1770,6 +1918,42 @@ input[type='checkbox'] {
   font-size: 15.5px;
   line-height: 1.6;
   color: var(--paper-dim);
+}
+.learn-link {
+  all: unset;
+  box-sizing: border-box;
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin: 0 0 16px;
+  padding: 10px 14px;
+  border-radius: var(--r);
+  border: 1px solid var(--rule-2);
+  background: var(--ink-0);
+  font-size: 14px;
+  cursor: pointer;
+  color: var(--paper-dim);
+}
+.learn-link > span {
+  flex: 1;
+}
+.learn-link svg:first-child {
+  color: var(--cyan);
+}
+.learn-link:hover {
+  border-color: var(--cyan);
+}
+.learn-link.learned {
+  background: var(--lime-dim);
+  border-color: var(--good);
+}
+.learn-link.learned svg:first-child {
+  color: var(--good);
+}
+.learn-link:focus-visible {
+  outline: 2px solid var(--cyan);
+  outline-offset: 2px;
 }
 .tool-units {
   display: flex;

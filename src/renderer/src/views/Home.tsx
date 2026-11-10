@@ -4,7 +4,7 @@ import { Heatmap } from '../components/Heatmap'
 import { Icon } from '../components/Icon'
 import { CURRICULUM } from '../content/curriculum'
 import { levelInfo } from '../lib/levels'
-import { dailyScenario, LESSONS, nextLesson } from '../lib/progress'
+import { ALL_LESSONS, dailyScenario, moduleCode, nextLesson, nextToolLesson } from '../lib/progress'
 import { allQuestsDone, QUEST_ICON, questLabel } from '../lib/quests'
 import { dueIds } from '../lib/srs'
 import { useStore } from '../store'
@@ -33,11 +33,12 @@ export function Home(): JSX.Element {
   const goal = s.settings.dailyGoal
   const left = Math.max(0, goal - day.xp)
   const next = nextLesson(s)
+  const nextTool = nextToolLesson(s)
   const due = dueIds(s.srs, t).length
   const incident = dailyScenario(s, t)
   const incidentDone = s.daily?.date === t
   const lvl = levelInfo(s.xp)
-  const doneCount = Object.keys(s.completed).length
+  const doneCount = ALL_LESSONS.filter((l) => s.completed[l.id]).length
   const questsDone = allQuestsDone(s.quests)
   const deckSize = Object.keys(s.srs).length
 
@@ -99,6 +100,20 @@ export function Home(): JSX.Element {
                 </div>
               </div>
             </div>
+          )}
+          {nextTool && (
+            <button className="next-up tools-next" onClick={() => go('lesson', { id: nextTool.id })}>
+              <div className="glyph">
+                <Icon name="wrench" size={17} />
+              </div>
+              <div>
+                <div className="hint-text">
+                  Tools track · {moduleCode(nextTool.unit)} · {nextTool.unit.title} · {nextTool.minutes} min
+                </div>
+                <div style={{ fontWeight: 500 }}>{nextTool.title}</div>
+              </div>
+              <Icon name="arrow-right" size={15} />
+            </button>
           )}
         </div>
         <div className="hero-goal">
@@ -190,7 +205,7 @@ export function Home(): JSX.Element {
           <div className="stat-cell">
             <div className="readout-k">Lessons</div>
             <div className="readout-v">
-              {doneCount}/{LESSONS.length}
+              {doneCount}/{ALL_LESSONS.length}
             </div>
           </div>
           <div className="stat-cell">

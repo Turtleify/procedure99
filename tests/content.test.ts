@@ -2,17 +2,19 @@ import { describe, expect, it } from 'vitest'
 import { CURRICULUM } from '../src/renderer/src/content/curriculum'
 import { SCENARIOS } from '../src/renderer/src/content/scenarios'
 import { COMPARISONS, TOOLS } from '../src/renderer/src/content/tools'
+import { TOOL_TRACK } from '../src/renderer/src/content/tools-track'
 
 const unitIds = new Set(CURRICULUM.map((u) => u.id))
+const ALL_UNITS = [...CURRICULUM, ...TOOL_TRACK]
 
 describe('curriculum', () => {
-  it('has unique lesson ids', () => {
-    const ids = CURRICULUM.flatMap((u) => u.lessons.map((l) => l.id))
+  it('has unique lesson ids (across both tracks)', () => {
+    const ids = ALL_UNITS.flatMap((u) => u.lessons.map((l) => l.id))
     expect(new Set(ids).size).toBe(ids.length)
   })
 
   it('every quiz answer index is in range and options are unique', () => {
-    for (const u of CURRICULUM)
+    for (const u of ALL_UNITS)
       for (const l of u.lessons) {
         if (l.type !== 'lesson') continue
         expect(l.cards.length, l.id).toBeGreaterThan(0)
@@ -27,11 +29,39 @@ describe('curriculum', () => {
   })
 
   it('bytes and labs are well-formed', () => {
-    for (const u of CURRICULUM)
+    for (const u of ALL_UNITS)
       for (const l of u.lessons) {
         if (l.type === 'byte') expect(l.points.length, l.id).toBeGreaterThan(2)
         if (l.type === 'lab') expect(l.steps.length, l.id).toBeGreaterThan(2)
       }
+  })
+})
+
+describe('tools track', () => {
+  const toolIds = new Set(TOOLS.map((t) => t.id))
+
+  it('modules have unique ids, valid requirements and real Toolbox ids', () => {
+    const ids = TOOL_TRACK.map((u) => u.id)
+    expect(new Set(ids).size).toBe(ids.length)
+    for (const u of TOOL_TRACK) {
+      expect(u.track, u.id).toBe('tools')
+      expect(u.requires?.length, `${u.id}: requires`).toBeGreaterThan(0)
+      for (const r of u.requires ?? []) expect(unitIds.has(r), `${u.id}: requires ${r}`).toBe(true)
+      expect(u.teaches?.length, `${u.id}: teaches`).toBeGreaterThan(0)
+      for (const t of u.teaches ?? []) expect(toolIds.has(t), `${u.id}: teaches ${t}`).toBe(true)
+    }
+  })
+
+  it('each module is 2–3 lessons plus a closing Interview Byte, with snippet questions', () => {
+    for (const u of TOOL_TRACK) {
+      const lessons = u.lessons.filter((l) => l.type === 'lesson')
+      expect(lessons.length, u.id).toBeGreaterThanOrEqual(2)
+      expect(lessons.length, u.id).toBeLessThanOrEqual(3)
+      expect(u.lessons[u.lessons.length - 1].type, `${u.id}: last lesson`).toBe('byte')
+      const snippets = lessons.flatMap((l) => (l.type === 'lesson' ? l.quiz : [])).filter((q) => q.code)
+      expect(snippets.length, `${u.id}: code questions`).toBeGreaterThanOrEqual(3)
+      for (const l of lessons) if (l.type === 'lesson') expect(l.quiz.every((q) => q.options.length === 4), l.id).toBe(true)
+    }
   })
 })
 

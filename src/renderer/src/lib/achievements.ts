@@ -1,7 +1,8 @@
 import type { AppState } from '../../../shared/types'
 import { TOOLS } from '../content/tools'
 import { levelInfo } from './levels'
-import { completedUnitIds, LAB_COUNT } from './progress'
+import { completedModuleIds, completedUnitIds, LAB_COUNT, TOOL_LESSONS } from './progress'
+import { TOOL_TRACK } from '../content/tools-track'
 
 export interface Achievement {
   id: string
@@ -30,6 +31,10 @@ export const ACHIEVEMENTS: Achievement[] = [
   { id: 'unit_u7', icon: 'zap', title: 'Cache Money', desc: 'Finish Caching', check: unitDone('u7') },
   { id: 'unit_u8', icon: 'split', title: 'Shard Happens', desc: 'Finish Replication & Sharding', check: unitDone('u8') },
   { id: 'unit_u9', icon: 'landmark', title: 'Architect', desc: 'Finish the Capstone', check: unitDone('u9') },
+  { id: 'tools_first', icon: 'wrench', title: 'Hands On', desc: 'Finish your first Tools-track lesson', check: (s) => TOOL_LESSONS.some((l) => s.completed[l.id]) },
+  { id: 'tools_module', icon: 'badge-check', title: 'Certified', desc: 'Finish a Tools-track module', check: (s) => completedModuleIds(s).length >= 1 },
+  { id: 'tools_half', icon: 'hammer', title: 'Power User', desc: 'Finish 7 Tools-track modules', check: (s) => completedModuleIds(s).length >= 7 },
+  { id: 'toolsmith', icon: 'trophy', title: 'Toolsmith', desc: 'Finish every Tools-track module', check: (s) => completedModuleIds(s).length >= TOOL_TRACK.length },
   { id: 'review50', icon: 'brain', title: 'Long-Term Memory', desc: 'Answer 50 review cards', check: (s) => s.stats.reviews >= 50 },
   { id: 'arena10', icon: 'swords', title: 'Tradeoff Thinker', desc: 'Win 10 Tradeoff Arena rounds', check: (s) => s.arena.wins >= 10 },
   { id: 'daily7', icon: 'siren', title: 'On Call', desc: 'Solve 7 Daily Incidents', check: (s) => s.stats.dailyWins >= 7 },

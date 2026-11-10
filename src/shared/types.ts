@@ -83,6 +83,8 @@ export interface AppState {
 
 export interface Question {
   q: string
+  /** optional snippet shown under the question ("read the config" style) */
+  code?: string
   options: string[]
   answer: number
   explain: string
@@ -137,6 +139,12 @@ export interface Unit {
   icon: string
   color: string
   lessons: Lesson[]
+  /** 'tools' modules teach real tools; default is the concepts track */
+  track?: 'concepts' | 'tools'
+  /** concept unit ids that must be finished before this module unlocks */
+  requires?: string[]
+  /** Toolbox entry ids this module teaches hands-on */
+  teaches?: string[]
 }
 
 export interface ScenarioOption {

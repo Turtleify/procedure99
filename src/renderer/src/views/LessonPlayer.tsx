@@ -3,7 +3,7 @@ import type { ByteLesson, ConceptLesson, LabLesson } from '../../../shared/types
 import { CodeBlock, Html, Label } from '../components/bits'
 import { Icon } from '../components/Icon'
 import { Mcq } from '../components/Mcq'
-import { LESSON_BY_ID, LESSONS, qid, type FlatLesson } from '../lib/progress'
+import { conceptUnitLabel, lessonAfter, LESSON_BY_ID, moduleCode, qid, type FlatLesson } from '../lib/progress'
 import { useStore, type CompleteResult } from '../store'
 
 type Flat<T> = T & Omit<FlatLesson, keyof T>
@@ -31,12 +31,12 @@ function LessonHeader({ lesson, step, total, label }: { lesson: FlatLesson; step
   const go = useStore((st) => st.go)
   return (
     <div className="lesson-header">
-      <button className="btn ghost" onClick={() => go('path')}>
+      <button className="btn ghost" onClick={() => go('path', { track: lesson.track, unit: lesson.unit.id })}>
         <Icon name="arrow-left" size={15} /> Path
       </button>
       <div className="lesson-titles">
         <Label bare>
-          Unit {String(lesson.unitIndex + 1).padStart(2, '0')} · {lesson.unit.title} · {label}
+          {lesson.track === 'tools' ? `Tools · ${moduleCode(lesson.unit)} · ${lesson.unit.title}` : conceptUnitLabel(lesson.unit.id)} · {label}
         </Label>
         <h1>{lesson.title}</h1>
       </div>
@@ -51,8 +51,9 @@ function LessonHeader({ lesson, step, total, label }: { lesson: FlatLesson; step
 
 function Results({ lesson, startXp, mark, tone, title, result, children }: { lesson: FlatLesson; startXp: number; mark: string; tone?: 'gold' | 'good'; title: string; result: CompleteResult | null; children?: ReactNode }): JSX.Element {
   const xpNow = useStore((st) => st.s.xp)
+  const s = useStore((st) => st.s)
   const go = useStore((st) => st.go)
-  const next = LESSONS[lesson.index + 1]
+  const next = lessonAfter(s, lesson)
   return (
     <div className="card results">
       <div className={`results-mark ${tone ?? ''}`}>
@@ -63,8 +64,15 @@ function Results({ lesson, startXp, mark, tone, title, result, children }: { les
       {children}
       {result?.unitJustDone && (
         <div className="callout gold">
-          <b>Unit complete: {lesson.unit.title}.</b>
-          {result.unitTools > 0 && <> The Toolbox has {result.unitTools} real-world tools for it.</>}
+          <b>
+            {lesson.track === 'tools' ? 'Module' : 'Unit'} complete: {lesson.unit.title}.
+          </b>
+          {result.unitTools > 0 &&
+            (lesson.track === 'tools' ? (
+              <> {result.unitTools} tools are now marked Learned in your Toolbox.</>
+            ) : (
+              <> The Toolbox has {result.unitTools} real-world tools for it.</>
+            ))}
         </div>
       )}
       {!result?.first && <p className="muted small">Replay: reduced XP, but it still counts toward your daily goal and quests.</p>}
@@ -74,7 +82,7 @@ function Results({ lesson, startXp, mark, tone, title, result, children }: { les
             Next: {next.title} <Icon name="arrow-right" size={16} />
           </button>
         )}
-        {result?.unitTools ? (
+        {result?.unitTools && lesson.track === 'concepts' ? (
           <button className="btn" onClick={() => go('toolbox', { unit: lesson.unit.id })}>
             <Icon name="wrench" size={15} /> See its tools
           </button>
@@ -161,6 +169,7 @@ function ConceptPlayer({ lesson }: { lesson: Flat<ConceptLesson> }): JSX.Element
         <Mcq
           key={qi}
           prompt={q.q}
+          code={q.code}
           options={q.options.map((text, i) => ({ text, correct: i === q.answer }))}
           explain={q.explain}
           onAnswer={(correct) => {

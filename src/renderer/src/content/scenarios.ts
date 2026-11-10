@@ -1,7 +1,8 @@
 import type { Scenario } from '../../../shared/types'
+import { TOOL_SCENARIOS } from './scenarios-tools'
 
 /** Tradeoff Arena + Daily Incident pool. Exactly one option per scenario is correct. */
-export const SCENARIOS: Scenario[] = [
+const CONCEPT_SCENARIOS: Scenario[] = [
   // ── u1
   {
     id: 'cpu-spike',
@@ -432,3 +433,6 @@ export const SCENARIOS: Scenario[] = [
     ]
   }
 ]
+
+/** Concept scenarios plus tool-specific ones (Tools track). */
+export const SCENARIOS: Scenario[] = [...CONCEPT_SCENARIOS, ...TOOL_SCENARIOS]

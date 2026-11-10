@@ -11,6 +11,8 @@ export interface McqOption {
 
 interface Props {
   prompt: ReactNode
+  /** optional config/command/output snippet shown under the prompt */
+  code?: string
   options: McqOption[]
   explain?: string
   onAnswer(correct: boolean): void
@@ -19,7 +21,7 @@ interface Props {
 }
 
 /** Multiple choice with shuffled options, 1–4 hotkeys and Enter to continue. Key it per question. */
-export function Mcq({ prompt, options, explain, onAnswer, onNext, nextLabel = 'Next' }: Props): JSX.Element {
+export function Mcq({ prompt, code, options, explain, onAnswer, onNext, nextLabel = 'Next' }: Props): JSX.Element {
   // shuffle once per mount (parents key this component per question)
   const [order] = useState(() => shuffle(options.map((_, i) => i)))
   const [picked, setPicked] = useState<number | null>(null)
@@ -51,6 +53,7 @@ export function Mcq({ prompt, options, explain, onAnswer, onNext, nextLabel = 'N
   return (
     <div className="mcq">
       <div className="mcq-prompt">{prompt}</div>
+      {code && <pre className="mcq-code">{code}</pre>}
       <div className="mcq-options">
         {order.map((i, pos) => {
           const o = options[i]

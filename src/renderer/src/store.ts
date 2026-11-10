@@ -5,7 +5,8 @@ import { defaultState, hydrate } from '../../shared/defaults'
 import { TOOLS } from './content/tools'
 import { ACHIEVEMENTS } from './lib/achievements'
 import { levelInfo } from './lib/levels'
-import { LESSON_BY_ID, unitComplete } from './lib/progress'
+import { LESSON_BY_ID, moduleCode, moduleUnlocked, unitComplete } from './lib/progress'
+import { TOOL_TRACK } from './content/tools-track'
 import { allQuestsDone, applyQuestEvent, generateQuests, QUEST_ICON, questLabel, type QuestEvent } from './lib/quests'
 import { answerCard, introduceCard } from './lib/srs'
 import { markFrozen, MAX_FREEZES, reconcileStreak, registerGoal } from './lib/streak'
@@ -295,15 +296,32 @@ export const useStore = create<Store>((set, get) => {
         questEvent(d, fx, 'lesson')
 
         const unitJustDone = !unitWasDone && unitComplete(d, L.unit)
-        const unitTools = unitJustDone ? TOOLS.filter((t) => t.unit === L.unit.id || t.alsoIn?.includes(L.unit.id)).length : 0
+        const isModule = L.track === 'tools'
+        const unitTools = !unitJustDone
+          ? 0
+          : isModule
+            ? (L.unit.teaches ?? []).length
+            : TOOLS.filter((t) => t.unit === L.unit.id || t.alsoIn?.includes(L.unit.id)).length
         if (unitJustDone) {
           fx.confetti = true
           fx.toasts.push({
             icon: L.unit.icon,
-            title: `Unit complete: ${L.unit.title}`,
-            body: unitTools ? `Explore its ${unitTools} real-world tools in the Toolbox.` : undefined,
+            title: `${isModule ? 'Module' : 'Unit'} complete: ${L.unit.title}`,
+            body: !unitTools
+              ? undefined
+              : isModule
+                ? `${unitTools} tools marked Learned in your Toolbox.`
+                : `Explore its ${unitTools} real-world tools in the Toolbox.`,
             tone: 'gold'
           })
+        }
+        // finishing a concept unit can open Tools-track modules
+        if (unitJustDone && !isModule) {
+          for (const m of TOOL_TRACK) {
+            if (m.requires?.includes(L.unit.id) && moduleUnlocked(d, m)) {
+              fx.toasts.push({ icon: m.icon, title: `Tools track unlocked: ${moduleCode(m)}`, body: `${m.title}: ${m.subtitle}`, tone: 'good' })
+            }
+          }
         }
         result = { first, xp, perfect, unitJustDone, unitTools }
       })
