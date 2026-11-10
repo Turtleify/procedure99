@@ -2,6 +2,7 @@ import { dateStr } from '../../../shared/dates'
 import { Bar, Label, ProgressRing } from '../components/bits'
 import { Heatmap } from '../components/Heatmap'
 import { Icon } from '../components/Icon'
+import { OverallCard } from '../components/OverallProgress'
 import { CURRICULUM } from '../content/curriculum'
 import { levelInfo } from '../lib/levels'
 import { ALL_LESSONS, dailyScenario, moduleCode, nextLesson, nextToolLesson } from '../lib/progress'
@@ -124,6 +125,8 @@ export function Home(): JSX.Element {
           <span className={`tag ${day.goalMet ? 'good' : ''}`}>{day.goalMet ? 'Goal met' : 'Daily goal'}</span>
         </div>
       </section>
+
+      <OverallCard />
 
       <section className="card quests">
         <Label n="01">Daily quests</Label>

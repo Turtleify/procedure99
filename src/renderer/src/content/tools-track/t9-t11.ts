@@ -6,9 +6,9 @@ export const T9_REDIS: Unit = {
   id: 't9',
   track: 'tools',
   requires: ['u7'],
-  teaches: ['redis', 'valkey', 'elasticache'],
-  title: 'Redis deep dive',
-  subtitle: 'Data structures, TTLs, and the patterns interviewers ask about',
+  teaches: ['redis', 'valkey', 'elasticache', 'cdn'],
+  title: 'Caching in practice',
+  subtitle: 'Redis structures and patterns, CDN cache headers, and running Redis',
   icon: 'zap',
   color: '#7ab814',
   lessons: [
@@ -120,7 +120,7 @@ DEL product:42</pre>
           title: 'Distributed lock: SET NX PX',
           body: `<pre class="diagram">SET lock:invoice:42 &lt;random-token&gt; NX PX 30000</pre>
 <p><code>NX</code> = only if absent, <code>PX</code> = auto-expire in ms so a dead holder can't block forever. Release with a small Lua script that deletes the key <b>only if the token still matches</b>.</p>
-<p>Caveats interviewers probe: a GC pause longer than the TTL lets two workers hold the "lock". Replication is async, so a failover can lose it. For correctness, pass a <b>fencing token</b> (increasing number) to the resource and reject stale ones. Use Redis locks for efficiency, not safety.</p>`
+<p>Caveats interviewers probe: a GC pause longer than the TTL lets two workers hold the "lock". If Redis fails over to a copy that hadn't received the lock yet, the lock vanishes (Unit 08 explains why). For correctness, pass a <b>fencing token</b> (increasing number) to the resource and reject stale ones. Use Redis locks for efficiency, not safety.</p>`
         },
         {
           title: 'Rate limiter: fixed window',
@@ -145,7 +145,7 @@ PEXPIRE rl:user42 60000</pre>
           body: `<p>Keep sessions in Redis so any app server can handle any request (stateless servers behind the load balancer):</p>
 <pre class="diagram">HSET sess:9f3c user_id 42 role admin
 EXPIRE sess:9f3c 1800        # refresh on activity</pre>
-<p>Losing sessions logs users out, so enable a replica and persistence. Sessions should not be evicted under memory pressure: put them on an instance with <code>noeviction</code> or <code>volatile-lru</code> sized with headroom, separate from the throwaway cache.</p>`
+<p>Losing sessions logs users out, so turn on persistence (see Running Redis). Sessions should not be evicted under memory pressure: put them on an instance with <code>noeviction</code> or <code>volatile-lru</code> sized with headroom, separate from the throwaway cache.</p>`
         }
       ],
       quiz: [
@@ -178,35 +178,148 @@ DEL lock:invoice:42`,
         },
         {
           q: 'An interviewer asks if your Redis lock makes payment processing safe from double charges. Best answer?',
-          options: ['Yes, SET NX is atomic', 'Yes, if you use Redis Cluster', 'Not on its own: pauses and failover can break it, so also use fencing tokens or idempotency keys at the payment layer', 'No, Redis cannot store locks'],
+          options: ['Yes, SET NX is atomic', 'Yes, if you also set a long PX timeout','Not on its own: pauses and failover can break it, so also use fencing tokens or idempotency keys at the payment layer', 'No, Redis cannot store locks'],
           answer: 2,
           explain: 'A lease-based lock improves efficiency but can be held by two clients. Correctness has to come from the resource side.'
         }
       ]
     },
     {
+      id: 't9-cdn',
+      type: 'lesson',
+      title: 'CDN caching for real',
+      minutes: 7,
+      cards: [
+        {
+          title: 'Cache-Control is the contract',
+          body: `<p>The origin tells browsers and CDNs what to cache with response headers:</p>
+<pre class="diagram">HTTP/1.1 200 OK
+Content-Type: application/json
+Cache-Control: public, max-age=60, s-maxage=600</pre>
+<ul><li><code>max-age</code>: browsers cache for 60s. <code>s-maxage</code>: shared caches (the CDN) use 600s instead.</li>
+<li><code>private</code>: only the browser may cache. <code>no-store</code>: nobody caches. <code>no-cache</code>: may store, but must check with the origin before every use.</li></ul>
+<p>The CDN is the "CDN layer" from Unit 07: TTL-based, shared by every user who hits that edge.</p>`
+        },
+        {
+          title: 'Revalidation: ETag, 304 and stale-while-revalidate',
+          body: `<p>When a cached copy expires, it doesn't have to be thrown away. The cache asks the origin "has this changed?":</p>
+<pre class="diagram">GET /api/catalog
+If-None-Match: "v42"
+
+HTTP/1.1 304 Not Modified
+ETag: "v42"</pre>
+<p>A <b>304</b> has no body, so the cache keeps its copy for another TTL at almost no cost. <code>stale-while-revalidate=30</code> goes further: for 30s after expiry, serve the stale copy instantly while refetching in the background. That also stops a stampede on the origin when a hot object expires.</p>`
+        },
+        {
+          title: 'Cache keys',
+          body: `<p>The <b>cache key</b> decides what counts as "the same" object. Usually host + path, plus whichever query strings, headers or cookies you add. In CloudFront this lives in a <b>cache policy</b>.</p>
+<p>Every extra key part <b>splits the cache</b>. Add a session cookie to the key and every user gets their own copy, so the hit ratio collapses. Add a tracking parameter like <code>utm_source</code> and each campaign link is a separate miss.</p>
+<p>Rule: key only on what actually changes the response, such as a language header or a <code>page</code> parameter.</p>`
+        },
+        {
+          title: 'Invalidation vs versioned filenames',
+          body: `<p>You can purge objects from every edge:</p>
+<pre class="diagram">aws cloudfront create-invalidation \\
+  --distribution-id E1ABCDEF \\
+  --paths "/index.html"</pre>
+<p>It takes time to reach all edges, and large or frequent invalidations can cost money. Better: <b>versioned filenames</b> (<code>app.3f9a1c.js</code>) cached for a year with <code>Cache-Control: public, max-age=31536000, immutable</code>. Each deploy publishes new names, so nothing needs purging except the short-lived HTML that references them.</p>`
+        },
+        {
+          title: 'What goes through the CDN, and how',
+          body: `<ul><li><b>Static assets</b> (JS, CSS, images, video): long TTLs, versioned names.</li>
+<li><b>Public API responses</b> (catalog, prices shown to everyone): short <code>s-maxage</code> such as 30–60s. Even a few seconds turns a traffic spike into a trickle at the origin.</li>
+<li><b>Personal responses</b> (cart, account, anything behind login): <code>private, no-store</code>, and keep auth cookies out of shared caches.</li></ul>
+<p>Classic incident: a personalized page cached publicly, so users see each other's account. Default to not caching anything that depends on who asks.</p>`
+        }
+      ],
+      quiz: [
+        {
+          q: 'What does this response header mean for a CDN in front of the origin?',
+          code: `HTTP/1.1 200 OK
+Cache-Control: public, max-age=0, s-maxage=300
+ETag: "a1b2c3"`,
+          options: [
+            'Nobody may cache it',
+            'The CDN may cache it for 300s while browsers must revalidate every time',
+            'Browsers cache for 300s, the CDN revalidates every time',
+            'Only the browser may cache it'
+          ],
+          answer: 1,
+          explain: 's-maxage applies to shared caches like CDNs and overrides max-age there; max-age=0 makes browsers revalidate (cheaply, via the ETag).'
+        },
+        {
+          q: 'What happened in this exchange?',
+          code: `GET /api/catalog HTTP/1.1
+If-None-Match: "v42"
+
+HTTP/1.1 304 Not Modified
+ETag: "v42"`,
+          options: [
+            'The catalog is unchanged, so the cache reuses its stored copy and no body was sent',
+            'The origin returned an empty catalog',
+            'The request failed and must be retried without If-None-Match',
+            'The CDN purged its copy of the catalog'
+          ],
+          answer: 0,
+          explain: 'If-None-Match carries the cached ETag. A match returns 304 with no body, so the cached copy stays valid at almost no cost.'
+        },
+        {
+          q: 'After adding the Cookie header to your CloudFront cache key, the hit ratio dropped from 95% to 3%. Why?',
+          options: [
+            'CloudFront cannot cache responses with cookies at all',
+            'Cookies disable s-maxage',
+            'Each user’s unique session cookie makes their requests separate cache entries',
+            'The TTL was reset to zero'
+          ],
+          answer: 2,
+          explain: 'Anything in the cache key splits the cache. Per-user cookies turn a shared cache into a per-user one.'
+        },
+        {
+          q: 'Your team runs a full "/*" invalidation on every deploy. What is the more standard approach for JS/CSS?',
+          options: [
+            'Set no-store on everything',
+            'Lower the CDN TTL to 1 second',
+            'Turn off the CDN during deploys',
+            'Content-hashed filenames with a long max-age and immutable; only the HTML is short-lived'
+          ],
+          answer: 3,
+          explain: 'New content gets a new URL, so old cached copies never need purging and hit ratio stays high.'
+        },
+        {
+          q: 'Which header fits the response for GET /api/cart for a logged-in user?',
+          options: [
+            'Cache-Control: public, s-maxage=60',
+            'Cache-Control: private, no-store',
+            'Cache-Control: public, max-age=31536000, immutable',
+            'No header; CDNs never cache API paths'
+          ],
+          answer: 1,
+          explain: 'A cart is personal. It must never sit in a shared cache, and no-store keeps it out of the browser cache too.'
+        }
+      ]
+    },
+    {
       id: 't9-ops',
       type: 'lesson',
-      title: 'Persistence, replication, Cluster and licensing',
+      title: 'Running Redis',
       minutes: 7,
       cards: [
         {
           title: 'Persistence: RDB vs AOF',
           body: `<ul><li><b>RDB</b>: point-in-time snapshots (<code>BGSAVE</code> forks a child that writes a compact file). Fast restarts, small backups, but you lose everything since the last snapshot.</li>
 <li><b>AOF</b>: append every write to a log. <code>appendfsync everysec</code> (the usual choice) loses at most about a second. <code>always</code> is safest and slowest. The log is rewritten in the background to stay small.</li></ul>
-<p>Many setups run both. Neither makes Redis a ledger: replication is still async.</p>`
+<p>Many setups run both. A pure cache can skip persistence entirely: it refills from the database. Sessions and rate limits usually want at least AOF.</p>`
         },
         {
-          title: 'Replication and Sentinel',
-          body: `<p>A primary streams writes to replicas <b>asynchronously</b>. Replicas can serve reads (slightly stale) and stand by for failover.</p>
-<p><b>Sentinel</b> is a separate set of processes (run at least 3) that monitor the primary, agree it's down, promote a replica and tell clients the new address. Clients connect via Sentinel, not a fixed IP.</p>
-<p>Gotcha: writes acknowledged by the old primary but not yet replicated are <b>lost on failover</b>. <code>WAIT</code> can reduce this but doesn't make Redis strongly consistent.</p>`
-        },
-        {
-          title: 'Redis Cluster: hash slots',
-          body: `<p>Cluster shards data across primaries. The keyspace is split into <b>16384 hash slots</b>: <code>slot = CRC16(key) mod 16384</code>, and each primary owns a range. Each primary has replicas, and failover is built in (no Sentinel).</p>
-<p>Clients get <code>MOVED</code> redirects and cache the slot map. Multi-key commands and transactions only work if all keys are in one slot. Force that with <b>hash tags</b>: <code>{user:42}:cart</code> and <code>{user:42}:profile</code> hash only the part in braces.</p>
-<p>Sentinel = HA for one dataset. Cluster = HA <i>and</i> sharding.</p>`
+          title: 'Sizing memory',
+          body: `<p>Everything lives in RAM, so memory is the number to watch:</p>
+<pre class="diagram">127.0.0.1:6379&gt; INFO memory
+used_memory_human:3.10G
+maxmemory_human:4.00G
+maxmemory_policy:allkeys-lru
+127.0.0.1:6379&gt; MEMORY USAGE product:42
+(integer) 1184</pre>
+<p>Estimate as keys x (average value + some per-key overhead), then add headroom. Set <code>maxmemory</code> well below the machine's RAM: a <code>BGSAVE</code> fork can need extra memory while writes continue. <code>redis-cli --bigkeys</code> finds the oversized keys that blow your estimate.</p>`
         },
         {
           title: 'Valkey and the license change',
@@ -216,19 +329,26 @@ DEL lock:invoice:42`,
         },
         {
           title: 'ElastiCache and managed options',
-          body: `<p><b>Amazon ElastiCache</b> runs Valkey, Redis OSS or Memcached for you: patching, replicas across AZs, automatic failover, backups, and cluster mode for sharding. AWS prices the Valkey engine below Redis OSS. A serverless option scales capacity for you.</p>
+          body: `<p><b>Amazon ElastiCache</b> runs Valkey, Redis OSS or Memcached for you: patching, backups, monitoring, and (Unit 08) copies across zones with automatic failover. AWS prices the Valkey engine below Redis OSS. A serverless option sizes capacity for you.</p>
 <p>Other clouds: Google <b>Memorystore</b>, Azure Cache for Redis, and Redis Cloud from Redis Inc.</p>
-<p>Design answer: "Managed Valkey/Redis, cluster mode with replicas in two AZs, <code>allkeys-lru</code> for the cache, separate instance for sessions and rate limits."</p>`
+<p>Design answer: "Managed Valkey/Redis, <code>allkeys-lru</code> for the cache, and a separate instance with persistence for sessions and rate limits, so cache evictions never log users out."</p>`
         }
       ],
       quiz: [
         {
-          q: 'What does this error mean and how do you fix it?',
-          code: `127.0.0.1:7000> MGET user:1:name user:1:email
-(error) CROSSSLOT Keys in request don't hash to the same slot`,
-          options: ['The cluster is down; restart a node', 'The keys hash to different slots; use a hash tag like {user:1}:name so related keys share a slot', 'MGET is disabled in Cluster; use KEYS', 'The client needs a longer timeout'],
-          answer: 1,
-          explain: 'Multi-key commands require one slot. Hash tags make Redis hash only the braced part, so related keys land together.'
+          q: 'This instance is a session store, not a cache. Writes keep growing. What happens when used memory reaches the limit?',
+          code: `127.0.0.1:6379> INFO memory
+used_memory_human:5.71G
+maxmemory_human:6.00G
+maxmemory_policy:noeviction`,
+          options: [
+            'Old sessions are evicted, logging some users out',
+            'Redis writes the overflow to disk',
+            'Redis grows past maxmemory until the machine runs out of RAM',
+            'New writes fail with an OOM error, so new logins break; add memory or trim data before then'
+          ],
+          answer: 3,
+          explain: 'noeviction never drops keys; it rejects writes at the limit. That is right for sessions, but it means you must size and alert on memory.'
         },
         {
           q: 'With appendfsync everysec, roughly how much acknowledged data can you lose if the server loses power?',
@@ -237,22 +357,21 @@ DEL lock:invoice:42`,
           explain: 'The AOF is fsynced once per second, so up to about a second of writes may not be on disk.'
         },
         {
-          q: 'What is the difference between Sentinel and Redis Cluster?',
-          options: ['Sentinel provides failover for one primary’s dataset; Cluster shards data across primaries and handles failover itself', 'Sentinel shards data; Cluster only does backups', 'They are the same feature with different names', 'Cluster requires Sentinel to elect leaders'],
-          answer: 0,
-          explain: 'Sentinel monitors and promotes replicas for a single dataset. Cluster splits keys over 16384 slots and has built-in failover.'
-        },
-        {
-          q: 'A primary acknowledges a write, then crashes before replicating it. Sentinel promotes a replica. What happens to the write?',
-          options: ['Sentinel replays it from its own log', 'The new primary fetches it from the old one on restart', 'Clients automatically retry it', 'It is lost, because replication is asynchronous'],
-          answer: 3,
-          explain: 'Async replication means an acknowledged write can vanish on failover. This is why Redis is not a source of truth for critical data.'
-        },
-        {
           q: 'Why does Valkey exist?',
           options: ['It was forked from the last BSD-licensed Redis after Redis changed its license in 2024', 'It is AWS’s proprietary rewrite of Redis in Rust', 'It is a Redis client library', 'It replaced Memcached in ElastiCache'],
           answer: 0,
           explain: 'The Linux Foundation forked Redis to keep a permissively licensed, protocol-compatible version.'
+        },
+        {
+          q: 'Your Redis host has 8 GB of RAM and uses RDB snapshots. Why not set maxmemory to 8gb?',
+          options: [
+            'maxmemory must be a power of two',
+            'The snapshot fork can need extra memory while writes continue, and the OS needs room too; leave headroom',
+            'Redis reserves half of RAM for replicas',
+            'maxmemory above 4gb disables eviction'
+          ],
+          answer: 1,
+          explain: 'BGSAVE forks a child process. Pages changed during the snapshot get copied, so memory use can climb above the dataset size.'
         }
       ]
     },
@@ -266,7 +385,7 @@ DEL lock:invoice:42`,
       model: `<p><b>Where:</b> middleware in the API gateway or each server, all sharing one Redis/Valkey cluster so limits are global.</p>
 <p><b>Algorithm:</b> sliding window counter or token bucket, run as a <b>single Lua script</b> so read-check-update is atomic. Key: <code>rl:{apiKey}</code>, with a TTL so idle keys clean up. Fixed window (<code>INCR</code> + <code>EXPIRE</code>) is fine if boundary bursts are acceptable. A sorted-set log is exact but costs memory per request.</p>
 <p><b>Response:</b> <code>429 Too Many Requests</code> with <code>Retry-After</code> and remaining-quota headers.</p>
-<p><b>Scale:</b> Redis Cluster shards by key; one key per client keeps each check in one slot. Sub-millisecond per call.</p>
+<p><b>Scale:</b> one small key per client, sub-millisecond per call. A single instance handles a lot; if it ever isn't enough, keys can be split across several instances (Unit 08).</p>
 <p><b>Failure:</b> short timeout. If Redis is down, <b>fail open</b> with a coarse local in-memory limit, so the limiter never takes the API down.</p>
 <p><b>Ops:</b> limits per plan in config, metrics on 429 rate and Redis latency.</p>`,
       points: [
@@ -289,10 +408,127 @@ export const T10_MESSAGING: Unit = {
   requires: ['u3', 'u8'],
   teaches: ['kafka', 'sqs', 'sns', 'rabbitmq'],
   title: 'Messaging',
-  subtitle: 'Kafka, SQS and RabbitMQ: how they deliver, and how they fail',
+  subtitle: 'Why queues, then Kafka, SQS and RabbitMQ: how they deliver, and how they fail',
   icon: 'send',
   color: '#2f9e8f',
   lessons: [
+    {
+      id: 't10-queues-101',
+      type: 'lesson',
+      title: 'Queues 101: why async',
+      minutes: 7,
+      cards: [
+        {
+          title: 'The cost of doing everything in the request',
+          body: `<p>A checkout request saves the order, then calls the email provider to send a receipt, then returns. Now the checkout is <b>coupled</b> to the email provider:</p>
+<ul><li>Email takes 5 seconds today, so checkout takes 5 seconds.</li>
+<li>Email is down, so checkout fails, and you lose a sale over a receipt.</li>
+<li>A traffic spike hits checkout, so it hits the email provider at the same rate.</li></ul>
+<p>The user only needed "order placed". The receipt can go out a few seconds later. Work that can happen later should not sit in the request path.</p>`
+        },
+        {
+          title: 'Producer, queue, consumer',
+          body: `<p>A <b>producer</b> puts a <b>message</b> on a <b>queue</b>, a separate service that stores it safely. A <b>consumer</b> (worker) takes messages off, does the work, then <b>acknowledges</b> it so the queue can forget it.</p>
+<pre class="diagram"># checkout service (producer)
+db.save(order)
+queue.send({"type": "order_placed", "order_id": 991})
+return 201                     # fast, email not involved
+
+# email worker (consumer), a separate process
+while True:
+    msg = queue.receive()
+    send_receipt(msg["order_id"])
+    queue.ack(msg)</pre>
+<p>Checkout and the worker now fail and scale independently.</p>`
+        },
+        {
+          title: 'Three shapes: work queue, pub/sub, log',
+          body: `<pre class="diagram">work queue  P -&gt; [m3 m2 m1] -&gt; W1 or W2     each message to ONE worker
+
+pub/sub     P -&gt; topic -+-&gt; email queue -&gt; email
+                        +-&gt; stats queue -&gt; stats  every subscriber gets a copy
+
+log         P -&gt; [0][1][2][3][4] ...      messages kept;
+                     ^reader B    ^reader A    each reader tracks its position</pre>
+<p><b>Work queue</b> (SQS, RabbitMQ): spread jobs over workers. <b>Pub/sub</b> (SNS, RabbitMQ fanout): one event, many interested services. <b>Log</b> (Kafka): many readers, each at its own pace, and you can re-read old messages.</p>`
+        },
+        {
+          title: 'Buffering spikes and back-pressure',
+          body: `<p>A flash sale sends 900 orders a second; your workers send 60 receipts a second. Without a queue, the extra load crashes something. With one, the backlog simply <b>waits</b>, and workers drain it after the spike.</p>
+<p>Watch <b>queue depth</b> and the <b>age of the oldest message</b>. Growing during a spike is the queue doing its job. Growing all day means workers are too slow on average, and no buffer fixes that: add workers or make them faster.</p>
+<p>If you can never catch up, push back at the front (<b>back-pressure</b>: reject or slow producers, e.g. 429 or 503) instead of letting the backlog grow forever.</p>`
+        },
+        {
+          title: 'Retries and duplicates',
+          body: `<p>If a worker crashes before it acks, the queue hands the message to another worker. That is how messages survive crashes, and it has a price: a worker that <b>finished the work but died before acking</b> causes the work to run <b>twice</b>.</p>
+<ul><li>Retry failures with <b>backoff</b> (wait longer each time) so a struggling dependency can recover.</li>
+<li>After N failed attempts, move the message to a <b>dead-letter queue</b> so one bad message doesn't loop forever.</li>
+<li>Design workers so running a message twice is harmless. A later lesson covers how.</li></ul>
+<p>Don't queue work the user is waiting on, like checking a password.</p>`
+        }
+      ],
+      quiz: [
+        {
+          q: 'The email provider has a 20-minute outage. What happens to this checkout, and what is the usual fix?',
+          code: `def checkout(order):
+    db.save(order)
+    email_api.send_receipt(order.email)   # 2-8 s normally
+    return 201`,
+          options: [
+            'Nothing; the order was saved first',
+            'Checkout is only slower; add a longer timeout to email_api',
+            'Checkouts hang or fail during the outage; put an order_placed message on a queue and let a worker send the receipt',
+            'The database rolls back every order; wrap both calls in a transaction'
+          ],
+          answer: 2,
+          explain: 'The request waits on the email call, so the provider’s outage becomes your outage. A queue moves the email out of the request path.'
+        },
+        {
+          q: 'An order_placed event must reach the email, inventory and analytics services, each getting its own copy. Which shape fits?',
+          options: [
+            'Pub/sub: every subscriber gets a copy',
+            'One work queue shared by all three services',
+            'Three synchronous HTTP calls from checkout',
+            'A single worker that does all three jobs in order'
+          ],
+          answer: 0,
+          explain: 'A shared work queue gives each message to only one consumer. Pub/sub (or a log with separate readers) delivers it to each service.'
+        },
+        {
+          q: 'A worker sends a receipt email, then crashes before acknowledging the message. What happens next?',
+          options: [
+            'The message is lost forever',
+            'The queue redelivers the message, so the customer may get the receipt twice',
+            'The queue knows the email was sent and deletes the message',
+            'Checkout is notified and rolls back the order'
+          ],
+          answer: 1,
+          explain: 'The queue only knows work is done when it gets the ack. Redelivery keeps messages safe from crashes but can duplicate work.'
+        },
+        {
+          q: 'Your receipts queue grows during every lunch spike and drains by 2pm. Last week it started growing all day and never drains. What does that mean?',
+          options: [
+            'Normal buffering; nothing to do',
+            'The queue is out of disk; switch to a bigger queue',
+            'Producers should retry more often',
+            'Workers are slower than the average arrival rate; add workers, speed them up, or apply back-pressure'
+          ],
+          answer: 3,
+          explain: 'A queue smooths spikes, but if consumers are slower on average, the backlog grows without limit. Fix the capacity gap.'
+        },
+        {
+          q: 'Which task should NOT go through a queue?',
+          options: [
+            'Resizing an uploaded photo into thumbnails',
+            'Sending a welcome email',
+            'Checking a user’s password at login',
+            'Recording a page view for analytics'
+          ],
+          answer: 2,
+          explain: 'The user is waiting for the login answer right now. Queues are for work that can finish a little later.'
+        }
+      ]
+    },
     {
       id: 't10-kafka',
       type: 'lesson',
@@ -569,16 +805,16 @@ export const T11_SCALING_DATA: Unit = {
   id: 't11',
   track: 'tools',
   requires: ['u8'],
-  teaches: ['postgres', 'patroni', 'vitess', 'citus', 'spanner', 'cockroachdb', 'debezium'],
+  teaches: ['postgres', 'patroni', 'rds', 'aurora', 'redis', 'cassandra', 'mongodb', 'elasticsearch', 'vitess', 'citus', 'spanner', 'cockroachdb', 'debezium'],
   title: 'Scaling data',
-  subtitle: 'Replicas, failover, sharding tools and change data capture',
+  subtitle: 'Replicas and failover (Patroni, RDS, Aurora), scaling Redis and Cassandra, sharding tools and CDC',
   icon: 'split',
   color: '#8a5cf6',
   lessons: [
     {
       id: 't11-replication',
       type: 'lesson',
-      title: 'Postgres replication and failover',
+      title: 'Postgres replication and failover: Patroni, RDS, Aurora',
       minutes: 8,
       cards: [
         {
@@ -604,18 +840,25 @@ FROM pg_stat_replication;</pre>
 <p>Name this problem in any design that adds read replicas.</p>`
         },
         {
-          title: 'Automatic failover with Patroni',
-          body: `<p>Postgres has no built-in failover. <b>Patroni</b> is the common open-source answer. A Patroni agent runs beside each Postgres node and uses a <b>DCS</b> (etcd, Consul or ZooKeeper) for leader election.</p>
-<p>The primary holds a <b>leader key with a TTL</b> and renews it every loop. If it can't renew (crash, partition), the key expires, the healthiest replica takes it and is promoted.</p>
-<pre class="diagram">$ patronictl -c /etc/patroni.yml list
-$ patronictl -c /etc/patroni.yml switchover</pre>
-<p>Clients find the primary through HAProxy health-checking Patroni's REST API (<code>/primary</code>), or a DNS/VIP update.</p>`
+          title: 'Self-hosted failover with Patroni',
+          body: `<p>Postgres has no built-in failover. <b>Patroni</b> runs beside each node and uses a <b>DCS</b> (etcd, Consul or ZooKeeper) for leader election. The primary holds a <b>leader key with a TTL</b> and keeps renewing it. If it can't (crash, partition), the key expires and the healthiest replica is promoted.</p>
+<pre class="diagram">$ patronictl -c /etc/patroni.yml list</pre>
+<p><b>Fencing</b>: a primary that can't renew its key <b>demotes itself</b>, so you never get two primaries (split brain). A watchdog can reset a hung node. Clients find the primary via HAProxy checking Patroni's <code>/primary</code> endpoint. Kubernetes operators often use Patroni under the hood.</p>`
         },
         {
-          title: 'Fencing: avoiding split brain',
-          body: `<p>The danger in failover is <b>two primaries</b> accepting writes. Patroni fences by design: a primary that can't reach the DCS to renew its lock <b>demotes itself</b> to read-only.</p>
-<p>A <b>watchdog</b> (Linux softdog) can reset a node whose Patroni process hangs, so it can't keep acting as primary. The old primary rejoins as a replica, often via <code>pg_rewind</code>.</p>
-<p>Managed alternatives (RDS Multi-AZ, Aurora, Cloud SQL HA) do this for you. Self-host with Patroni when you need control or run on Kubernetes (operators often use Patroni under the hood).</p>`
+          title: 'RDS: Multi-AZ and read replicas',
+          body: `<p>On AWS, RDS does the failover work for you:</p>
+<ul><li><b>Multi-AZ</b>: a <b>synchronous</b> standby in another Availability Zone. If the primary fails, RDS flips the DNS endpoint to the standby, usually in a minute or two. In the classic setup the standby does <b>not</b> serve reads. It is for availability.</li>
+<li><b>Read replicas</b>: <b>asynchronous</b> copies with their own endpoints. They scale reads but lag, so read-your-writes needs the care above.</li></ul>
+<p>Interview line: "Multi-AZ for failover, read replicas for read scaling. They solve different problems."</p>`
+        },
+        {
+          title: 'Aurora PostgreSQL',
+          body: `<p>Aurora keeps the Postgres interface but replaces storage. Data is replicated <b>six ways across three AZs</b> in a shared storage layer.</p>
+<ul><li>Replicas read the same storage, so lag is usually small and adding one doesn't copy data.</li>
+<li>Failover to a replica is typically faster than classic RDS.</li>
+<li>You get a <b>writer endpoint</b> and a load-balanced <b>reader endpoint</b>.</li></ul>
+<p>Trade-off: higher cost and AWS lock-in. Writes still go to one primary, so it does not remove the need to shard at very high write volume.</p>`
         }
       ],
       quiz: [
@@ -657,10 +900,115 @@ bootstrap:
           explain: 'Without the leader lock, the node must assume another node may be promoted, so it stops accepting writes to avoid split brain.'
         },
         {
-          q: 'Your primary is CPU-bound on writes. Will adding three read replicas help?',
-          options: ['Yes, writes are spread across all four nodes', 'Yes, if replicas are synchronous', 'Yes, replicas take over vacuum', 'No: every replica still replays every write, and only the primary accepts writes'],
+          q: 'Your RDS primary is at 90% CPU from read queries. Which change helps directly?',
+          options: [
+            'Enable Multi-AZ',
+            'Increase the backup retention period',
+            'Add read replicas and send read-only queries to them',
+            'Switch PgBouncer to session mode'
+          ],
+          answer: 2,
+          explain: 'Read replicas take read traffic. A classic Multi-AZ standby only exists for failover and serves no reads.'
+        },
+        {
+          q: 'Your Aurora writer is CPU-bound on writes. Will adding three Aurora replicas help?',
+          options: ['Yes, writes are spread across all four instances', 'Yes, because Aurora storage is shared', 'Yes, replicas take over vacuum', 'No: only the writer accepts writes, so replicas scale reads, not writes'],
           answer: 3,
-          explain: 'Replication scales reads. Write scaling needs less write work, bigger hardware, or sharding.'
+          explain: 'Aurora and classic replication both scale reads. Write scaling needs less write work, bigger hardware, or sharding.'
+        }
+      ]
+    },
+    {
+      id: 't11-scaling-stores',
+      type: 'lesson',
+      title: 'Scaling Redis, Cassandra and friends',
+      minutes: 8,
+      cards: [
+        {
+          title: 'Redis replication and Sentinel',
+          body: `<p>A Redis primary streams writes to replicas <b>asynchronously</b>. Replicas can serve reads (slightly stale) and stand by for failover.</p>
+<p><b>Sentinel</b> is a separate set of processes (run at least 3) that monitor the primary, agree it's down, promote a replica and tell clients the new address. Clients connect via Sentinel, not a fixed IP.</p>
+<p>Gotcha: writes acknowledged by the old primary but not yet replicated are <b>lost on failover</b>. <code>WAIT</code> can reduce this but doesn't make Redis strongly consistent.</p>`
+        },
+        {
+          title: 'Redis Cluster: hash slots',
+          body: `<p>Cluster shards data across primaries. The keyspace is split into <b>16384 hash slots</b>: <code>slot = CRC16(key) mod 16384</code>, and each primary owns a range. Each primary has replicas, and failover is built in (no Sentinel).</p>
+<p>Clients get <code>MOVED</code> redirects and cache the slot map. Multi-key commands and transactions only work if all keys are in one slot. Force that with <b>hash tags</b>: <code>{user:42}:cart</code> and <code>{user:42}:profile</code> hash only the part in braces.</p>
+<p>Sentinel = HA for one dataset. Cluster = HA <i>and</i> sharding. ElastiCache calls this "cluster mode".</p>`
+        },
+        {
+          title: 'Cassandra: replication factor and tunable consistency',
+          body: `<p>Each partition is stored on <b>RF</b> nodes (replication factor, often 3). Each read and write picks how many replicas must answer:</p>
+<ul><li><b>ONE</b>: fastest, may read stale data.</li><li><b>QUORUM</b>: majority, here 2 of 3.</li><li><b>LOCAL_QUORUM</b>: majority in the local datacenter. Common in multi-region setups.</li><li><b>ALL</b>: every replica. One node down blocks the request.</li></ul>
+<p>If <b>R + W &gt; RF</b> (e.g. QUORUM writes + QUORUM reads), reads see the latest acknowledged write. Conflicts resolve by <b>last write wins</b> on timestamps. Deletes write <b>tombstones</b>, and lots of them slow reads.</p>`
+        },
+        {
+          title: 'MongoDB: replica sets and sharding',
+          body: `<p>A <b>replica set</b> is one <b>primary</b> that takes writes plus <b>secondaries</b> that replicate its oplog. If the primary dies, the members <b>elect</b> a new one, usually within seconds.</p>
+<ul><li><b>Write concern</b> <code>w: "majority"</code>: acknowledged only once most members have it, so it survives failover.</li>
+<li><b>Read preference</b>: <code>primary</code> by default. Reading from secondaries scales reads but may return stale data.</li></ul>
+<p>Use 3 members minimum. When one set can't hold the data or writes, <b>shard</b> the collection by a shard key; <code>mongos</code> routers send each query to the right shard.</p>`
+        },
+        {
+          title: 'Elasticsearch: shards, replicas and cluster health',
+          body: `<p>Each <b>primary shard</b> is a self-contained Lucene index. A replica is never placed on the same node as its primary. Primary count is fixed at creation (changing it needs split, shrink or a reindex); replica count can change live.</p>
+<pre class="diagram">GET _cluster/health
+{ "status": "yellow", "number_of_nodes": 1,
+  "unassigned_shards": 5 }</pre>
+<p><b>Green</b>: all shards assigned. <b>Yellow</b>: all primaries fine, some replicas unassigned (no redundancy). <b>Red</b>: a primary is missing, so some data is unavailable. Size shards in the tens of GB; thousands of tiny shards waste memory.</p>`
+        }
+      ],
+      quiz: [
+        {
+          q: 'What does this error mean and how do you fix it?',
+          code: `127.0.0.1:7000> MGET user:1:name user:1:email
+(error) CROSSSLOT Keys in request don't hash to the same slot`,
+          options: ['The cluster is down; restart a node', 'MGET is disabled in Cluster; use KEYS', 'The client needs a longer timeout', 'The keys hash to different slots; use a hash tag like {user:1}:name so related keys share a slot'],
+          answer: 3,
+          explain: 'Multi-key commands require one slot. Hash tags make Redis hash only the braced part, so related keys land together.'
+        },
+        {
+          q: 'What is the difference between Sentinel and Redis Cluster?',
+          options: ['Sentinel provides failover for one primary’s dataset; Cluster shards data across primaries and handles failover itself', 'Sentinel shards data; Cluster only does backups', 'They are the same feature with different names', 'Cluster requires Sentinel to elect leaders'],
+          answer: 0,
+          explain: 'Sentinel monitors and promotes replicas for a single dataset. Cluster splits keys over 16384 slots and has built-in failover.'
+        },
+        {
+          q: 'A Redis primary acknowledges a write, then crashes before replicating it. Sentinel promotes a replica. What happens to the write?',
+          options: ['Sentinel replays it from its own log', 'It is lost, because replication is asynchronous', 'The new primary fetches it from the old one on restart', 'Clients automatically retry it'],
+          answer: 1,
+          explain: 'Async replication means an acknowledged write can vanish on failover. This is why Redis is not a source of truth for critical data.'
+        },
+        {
+          q: 'Cassandra, RF = 3. Writes use QUORUM. Which read level guarantees you see the latest acknowledged write?',
+          options: ['ONE', 'ANY', 'QUORUM', 'TWO with writes at ONE'],
+          answer: 2,
+          explain: 'QUORUM + QUORUM is 2 + 2 = 4 > 3, so the read and write sets overlap on at least one replica.'
+        },
+        {
+          q: 'What does MongoDB write concern w: "majority" guarantee?',
+          options: [
+            'The write is applied to every member before acknowledging',
+            'The write is fsynced on the primary only',
+            'The write has reached a majority of replica set members, so it survives a primary failover',
+            'Reads from any secondary will see the write immediately'
+          ],
+          answer: 2,
+          explain: 'A majority-acknowledged write will be on whichever member wins the next election, so it will not be rolled back.'
+        },
+        {
+          q: 'A single-node Elasticsearch cluster reports this. Why is it yellow?',
+          code: `GET _cluster/health
+{ "status": "yellow", "number_of_nodes": 1,
+  "active_primary_shards": 5, "unassigned_shards": 5 }`,
+          options: [
+            'Replicas can’t be placed on the node holding their primary, and there is no second node; data is served but has no redundancy',
+            'Five primary shards are missing, so searches return partial results',
+            'The cluster is overloaded and rejecting writes',
+            'The index needs a refresh'
+          ],
+          answer: 0,
+          explain: 'Yellow means every primary is active but some replicas are unassigned. Add a node (or set replicas to 0 for a dev box).'
         }
       ]
     },

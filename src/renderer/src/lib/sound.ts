@@ -79,6 +79,11 @@ export const sfx = {
   wrong(): void {
     tone({ freq: 220, to: 160, dur: 0.22, gain: 0.12, type: 'triangle' })
   },
+  /** soft sparkle when gained XP lands in the level bar */
+  xpLand(): void {
+    tone({ freq: 1320, dur: 0.07, gain: 0.05, type: 'triangle' })
+    tone({ freq: 1760, dur: 0.1, gain: 0.04, type: 'triangle', at: 0.05 })
+  },
   /** arpeggio fanfare for level-ups */
   levelUp(): void {
     ;[523, 659, 784, 1047].forEach((f, i) => tone({ freq: f, dur: 0.28, gain: 0.11, type: 'triangle', at: i * 0.09 }))

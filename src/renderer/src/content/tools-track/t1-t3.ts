@@ -5,288 +5,178 @@ export const T1_CLOUD: Unit = {
   id: 't1',
   track: 'tools',
   requires: ['u1'],
-  teaches: ['aws', 'ec2', 'aws-iam', 's3', 'ebs', 'vpc', 'gcp', 'azure'],
+  teaches: ['aws', 'ec2', 's3', 'aws-iam', 'gcp', 'azure'],
   title: 'Cloud fundamentals',
-  subtitle: 'Regions, EC2, IAM and S3: the AWS mental model',
+  subtitle: 'Renting servers, storing files safely, and who can touch what',
   icon: 'cloud',
   color: '#ff9f43',
   lessons: [
     {
       id: 't1-regions-ec2',
       type: 'lesson',
-      title: 'Regions, AZs and EC2',
+      title: 'What the cloud actually is',
       minutes: 7,
       cards: [
         {
+          title: 'Renting servers instead of owning them',
+          body: `<p>In Unit 01 you saw that a server is just a computer. The <b>cloud</b> is someone else's computers, rented by the second. AWS, Google Cloud (GCP) and Microsoft Azure own huge data centers; you ask for a machine and get one in a minute or two.</p>
+<ul><li>No buying hardware, no waiting weeks, no fixing broken disks yourself.</li>
+<li>You pay for what you use and give machines back when you're done.</li>
+<li>You still own your code, your data and your mistakes.</li></ul>
+<p>Most of what you'll learn here is AWS, the biggest provider. The ideas carry over to the others.</p>`
+        },
+        {
           title: 'Regions and availability zones',
-          body: `<p>A <b>region</b> (e.g. <code>us-east-1</code>) is a geographic area. Each region has several <b>availability zones</b> (AZs): one or more data centers with their own power, cooling and networking, a few milliseconds apart.</p>
+          body: `<p>A <b>region</b> (e.g. <code>us-east-1</code>, northern Virginia) is a geographic area. Each region has several <b>availability zones</b> (AZs): separate data centers with their own power, cooling and network, miles apart.</p>
 <pre class="diagram">Region us-east-1
  ├── AZ us-east-1a   (data centers)
  ├── AZ us-east-1b   (data centers)
  └── AZ us-east-1c   (data centers)</pre>
-<p>Services are <b>global</b> (IAM, Route 53), <b>regional</b> (S3, SQS) or <b>zonal</b> (an EC2 instance, an EBS volume). Knowing which is which tells you what survives a failure.</p>`
+<p>Pick a region close to your users so requests travel less distance. AZs exist for a different reason: failure.</p>`
         },
         {
-          title: 'Why multi-AZ matters',
-          body: `<p>An AZ is the failure unit you design for. Whole AZs do go down, so anything zonal should exist in <b>at least two AZs</b>:</p>
-<ul><li>Load balancer (ALB) spread across 2+ AZs</li><li>App servers in an auto scaling group spanning those AZs</li><li>Database with a <b>Multi-AZ</b> standby (RDS/Aurora)</li></ul>
-<p>Trade-offs: cross-AZ traffic adds a little latency and is <b>billed</b>. Multi-<i>region</i> is a much bigger step (data replication, failover DNS) that most designs only need for strict DR or global latency.</p>`
+          title: 'Why spread across AZs',
+          body: `<p>Remember failure #3 from Unit 01: <b>the machine dies</b>. In the cloud, a single server can die, and occasionally a whole AZ goes down (power, flooding, a bad network change).</p>
+<p>If your only server and your only copy of the data sit in one AZ, they die together. Put a second copy in a <b>second AZ</b> and the AZ outage becomes a non-event.</p>
+<p>Many AWS services do this for you: S3 keeps copies in several AZs, and managed databases offer a standby in another AZ. A single server you rent does not. Spreading across <b>regions</b> is a much bigger step that most apps don't need at first.</p>`
         },
         {
-          title: 'EC2 instances and AMIs',
-          body: `<p>EC2 gives you virtual machines. Instance type names encode the shape:</p>
-<pre class="diagram">m7g.large
-│││  └── size (nano … metal)
-││└───── g = AWS Graviton (ARM) CPU
-│└────── generation
-└─────── family: t burstable, m general, c compute, r memory, g/p GPU</pre>
-<p>An <b>AMI</b> is the boot image (OS + preinstalled software). AMIs are <b>regional</b>: copy one to launch it elsewhere. You either <b>bake</b> an AMI with everything installed (fast boot) or start from a base AMI and configure via <b>user data</b> scripts at boot (flexible, slower).</p>`
+          title: 'EC2: a server you rent',
+          body: `<p><b>EC2</b> gives you virtual machines called <b>instances</b>. The <b>instance type</b> sets the size:</p>
+<pre class="diagram">t3.micro    2 vCPU    1 GiB RAM    tiny side project
+m7g.large   2 vCPU    8 GiB RAM    general purpose
+r7g.4xlarge 16 vCPU  128 GiB RAM   memory-hungry</pre>
+<p>CPU or RAM running out (failure #1)? Stop the instance, pick a bigger type, start it again. That's <b>vertical scaling</b>, which Unit 03 covers.</p>
+<p>An <b>AMI</b> (Amazon Machine Image) is a saved disk image: the OS plus anything you installed. Launch new instances from it and they boot identical to the original.</p>`
         },
         {
-          title: 'Auto scaling groups',
-          body: `<p>An <b>ASG</b> keeps a fleet of identical instances healthy and sized right. You give it a <b>launch template</b> (AMI, type, security groups), subnets in several AZs, and three numbers:</p>
-<pre class="diagram">min 2   desired 4   max 10
-policy: target tracking, average CPU = 50%</pre>
-<p>If an instance fails its health check (EC2 or load balancer), the ASG terminates and replaces it. Scaling policies move <code>desired</code> between min and max. This only works if instances are <b>stateless</b>: sessions and files live elsewhere.</p>`
-        },
-        {
-          title: 'Pricing models',
-          body: `<ul><li><b>On-demand</b>: pay by the second, no commitment. The default.</li>
-<li><b>Savings Plans / Reserved Instances</b>: commit to 1 or 3 years of usage for a large discount. Use for your steady baseline.</li>
-<li><b>Spot</b>: spare capacity at a deep discount, but AWS can reclaim it with a <b>two-minute warning</b>. Great for stateless workers, CI and batch jobs that can retry.</li></ul>
-<p>Common pattern: baseline on Savings Plans, peaks on on-demand, interruptible work on spot.</p>`
+          title: 'Pricing in plain terms',
+          body: `<ul><li><b>On-demand</b>: pay by the second, no commitment, stop any time. The default, and the right start.</li>
+<li><b>Reserved / Savings Plans</b>: promise to use a certain amount for 1 or 3 years and get a big discount. For servers you know you'll run all year.</li>
+<li><b>Spot</b>: AWS's spare capacity at a deep discount, but AWS can take it back with a <b>two-minute warning</b>. Only for work that can be stopped and restarted safely.</li></ul>
+<p>Also watch the quiet costs: data leaving AWS to the internet is billed, and forgotten instances keep charging.</p>`
         },
         {
           title: 'Same ideas on GCP and Azure',
           body: `<p>The mental model transfers. Names change:</p>
 <ul><li><b>VMs</b>: EC2 → GCP Compute Engine → Azure Virtual Machines</li>
-<li><b>Scaling groups</b>: ASG → Managed Instance Groups → VM Scale Sets</li>
 <li><b>Object storage</b>: S3 → Cloud Storage → Blob Storage</li>
-<li><b>Identity</b>: AWS IAM → GCP IAM (service accounts) → Microsoft Entra ID + Azure RBAC</li></ul>
+<li><b>Identity</b>: AWS IAM → GCP IAM → Microsoft Entra ID + Azure RBAC</li></ul>
 <p>All three have regions and zones. In an interview, naming the AWS service is fine; say "or the equivalent" if the company uses another cloud.</p>`
         }
       ],
       quiz: [
         {
-          q: 'Why should an auto scaling group span at least two availability zones?',
+          q: 'Why run your app on two servers in two different availability zones instead of one?',
           options: [
-            'It makes each instance faster',
-            'So the service survives the loss of a whole AZ',
-            'AWS requires it for any ASG',
-            'Cross-AZ traffic is free, so it saves money'
-          ],
-          answer: 1,
-          explain: 'AZs fail independently. Instances in a second AZ keep serving while the ASG replaces capacity.'
-        },
-        {
-          q: 'Read the command. What is the availability problem?',
-          code: `aws autoscaling create-auto-scaling-group \\
-  --auto-scaling-group-name web-asg \\
-  --launch-template LaunchTemplateName=web-lt \\
-  --min-size 2 --max-size 10 --desired-capacity 2 \\
-  --vpc-zone-identifier "subnet-0a1b2c3d"`,
-          options: [
-            'min-size 2 is too low to auto scale',
-            'A launch template cannot be referenced by name',
-            'Only one subnet, so every instance lands in a single AZ',
-            'desired-capacity must equal max-size'
+            'Two AZs make each server faster',
+            'AWS charges less for multi-AZ setups',
+            'If one AZ goes down, the server in the other AZ keeps working',
+            'Each AZ serves users in a different country'
           ],
           answer: 2,
-          explain: 'A subnet lives in exactly one AZ. List subnets from two or more AZs so an AZ outage does not take out the whole fleet.'
+          explain: 'AZs fail independently. A copy in a second AZ turns "the machine died" from an outage into a non-event.'
         },
         {
-          q: 'Which workload is the best fit for spot instances?',
+          q: 'Read the command. What does --image-id choose?',
+          code: `aws ec2 run-instances \\
+  --image-id ami-0abcdef1234567890 \\
+  --instance-type t3.micro \\
+  --count 1`,
           options: [
-            'Workers pulling image-resize jobs from a queue, with retries',
-            'The primary database',
-            'A single long-lived server holding user sessions in memory',
-            'A legacy app that cannot be restarted'
+            'The saved disk image (AMI) the new server boots from',
+            'The size of the server: CPU and RAM',
+            'The region the server runs in',
+            'A photo stored in S3'
           ],
           answer: 0,
-          explain: 'Spot can be reclaimed with two minutes notice. Stateless, retryable work from a queue tolerates that; stateful singletons do not.'
+          explain: 'The AMI holds the OS and installed software. The instance type (t3.micro) sets CPU and RAM.'
         },
         {
-          q: 'In the instance type m7g.large, what does the g mean?',
-          options: ['It has a GPU', 'It is general purpose', 'It uses an AWS Graviton (ARM) processor', 'It is a burstable instance'],
-          answer: 2,
-          explain: 'The letter after the generation is an attribute; g means Graviton. Family m is general purpose; GPUs are the g and p families.'
-        },
-        {
-          q: 'You built an AMI in us-east-1 and want to launch it in eu-west-1. What do you do?',
+          q: 'Your single EC2 server keeps running out of RAM. What is the simplest fix?',
           options: [
-            'Nothing, AMIs are global',
-            'Copy the AMI to eu-west-1 first',
-            'Attach the AMI as an EBS volume in eu-west-1',
-            'You can’t; AMIs never leave their region'
-          ],
-          answer: 1,
-          explain: 'AMIs are regional resources. Copy them to each region you deploy in, which is a normal step in multi-region pipelines.'
-        }
-      ]
-    },
-    {
-      id: 't1-iam',
-      type: 'lesson',
-      title: 'IAM: who can do what',
-      minutes: 6,
-      cards: [
-        {
-          title: 'Users, groups and roles',
-          body: `<ul><li><b>User</b>: an identity with long-lived credentials (password, access keys). Today, humans usually sign in through SSO (IAM Identity Center) instead.</li>
-<li><b>Group</b>: a set of users that share policies.</li>
-<li><b>Role</b>: an identity with <b>no permanent credentials</b>. Something <i>assumes</i> it and gets temporary credentials from STS.</li></ul>
-<p>Machines use roles: an EC2 <b>instance profile</b>, a Lambda <b>execution role</b>, a CI job assuming a deploy role. Rule of thumb: if it's code, it should be a role, not an access key.</p>`
-        },
-        {
-          title: 'Policies are JSON',
-          body: `<p>A policy lists statements of <b>Effect</b>, <b>Action</b>, <b>Resource</b> and optional <b>Condition</b>:</p>
-<pre class="diagram">{
-  "Version": "2012-10-17",
-  "Statement": [{
-    "Effect": "Allow",
-    "Action": ["s3:GetObject", "s3:PutObject"],
-    "Resource": "arn:aws:s3:::acme-uploads/user-content/*"
-  }]
-}</pre>
-<p>Attach it to a role, user or group (<b>identity-based</b>). Some resources also take <b>resource-based</b> policies, like an S3 bucket policy or SQS queue policy, which can grant access to other accounts.</p>`
-        },
-        {
-          title: 'How a request is evaluated',
-          body: `<ol><li>Everything starts as an <b>implicit deny</b>.</li>
-<li>An applicable <b>Allow</b> grants access.</li>
-<li>Any <b>explicit Deny</b> wins over every Allow.</li></ol>
-<p>So you can grant broadly in one policy and fence off danger with a Deny (e.g. deny deleting the prod bucket). Organization-level guardrails (Service Control Policies) and permission boundaries can cap what any policy grants.</p>`
-        },
-        {
-          title: 'Least privilege in practice',
-          body: `<p>Grant only the actions and resources a principal needs:</p>
-<ul><li>Avoid <code>"Action": "*"</code> and <code>"Resource": "*"</code> outside admin roles.</li>
-<li>One role per service, scoped to its own bucket, queue or table.</li>
-<li>Start narrow and widen on <code>AccessDenied</code>, not the other way around.</li>
-<li>Use tools like IAM Access Analyzer and last-accessed data to trim unused permissions.</li></ul>
-<p>In an interview: "each service gets its own role with least-privilege access" is a one-line security win.</p>`
-        },
-        {
-          title: 'Classic IAM gotchas',
-          body: `<ul><li><b>Leaked access keys</b>: keys committed to git get scraped within minutes. Use roles and short-lived credentials.</li>
-<li><b>Root account</b>: enable MFA, lock it away, never use it day to day.</li>
-<li><b>Bucket vs object ARNs</b>: <code>s3:ListBucket</code> applies to <code>arn:aws:s3:::bucket</code>; <code>s3:GetObject</code> applies to <code>arn:aws:s3:::bucket/*</code>. Mixing them up gives a confusing AccessDenied.</li>
-<li><b>Cross-account</b>: a role needs a <b>trust policy</b> saying who may assume it, plus a permissions policy saying what it can do.</li></ul>`
-        }
-      ],
-      quiz: [
-        {
-          q: 'Your app on EC2 needs to read from S3. What is the recommended way to give it credentials?',
-          options: [
-            'Create an IAM user and put its access keys in an .env file',
-            'Use the root account keys, since they always work',
-            'Make the bucket public',
-            'Attach an IAM role to the instance via an instance profile'
+            'Move it to another region',
+            'Switch it to spot pricing',
+            'Make a new AMI and launch the same type again',
+            'Stop it and change to a larger instance type'
           ],
           answer: 3,
-          explain: 'The role delivers temporary, auto-rotated credentials through the instance metadata service, so no long-lived keys exist to leak.'
+          explain: 'A bigger instance type means more CPU and RAM. That is vertical scaling, the simplest first step.'
         },
         {
-          q: 'Read the policy. Listing the bucket returns AccessDenied. Why?',
-          code: `{
-  "Version": "2012-10-17",
-  "Statement": [{
-    "Effect": "Allow",
-    "Action": ["s3:ListBucket", "s3:GetObject"],
-    "Resource": "arn:aws:s3:::acme-reports/*"
-  }]
-}`,
+          q: 'Which job is the best fit for spot instances?',
           options: [
-            'ListBucket applies to the bucket ARN, not to objects under /*',
-            'The Version date is wrong',
-            'GetObject and ListBucket cannot be in the same statement',
-            'S3 policies must use Effect: Permit'
+            'The only server running your production database',
+            'A nightly batch job that resizes old photos and can safely restart if stopped',
+            'A server that must never be interrupted during a live event',
+            'A legacy app that loses data when restarted'
+          ],
+          answer: 1,
+          explain: 'Spot can be taken back with two minutes of warning. Only work that can be interrupted and retried belongs there.'
+        },
+        {
+          q: 'What is an availability zone?',
+          options: [
+            'One or more data centers in a region, with their own power and network',
+            'A country where AWS is legally allowed to operate',
+            'A backup copy of your server',
+            'A price tier for EC2'
           ],
           answer: 0,
-          explain: 'Add arn:aws:s3:::acme-reports as a resource for ListBucket. Object actions use bucket/*, bucket actions use the bare bucket ARN.'
-        },
-        {
-          q: 'One policy allows s3:DeleteObject on a bucket. Another attached policy explicitly denies it. What happens?',
-          options: ['The delete succeeds; Allow wins', 'The delete is denied; explicit Deny always wins', 'Whichever policy was attached last wins', 'AWS rejects the policy attachment'],
-          answer: 1,
-          explain: 'IAM evaluation: explicit Deny beats any Allow, and anything not allowed is implicitly denied.'
-        },
-        {
-          q: 'What is the key difference between an IAM user and an IAM role?',
-          options: [
-            'Roles can only be used by AWS services',
-            'Users cannot have policies attached',
-            'A role has no long-lived credentials; it is assumed for temporary ones',
-            'Roles are regional, users are global'
-          ],
-          answer: 2,
-          explain: 'Roles are assumed via STS and issue short-lived credentials. Humans, services and other accounts can all assume roles.'
-        },
-        {
-          q: 'A CI pipeline in another AWS account must deploy into yours. Which setup is correct?',
-          options: [
-            'Share your root password with the CI account',
-            'Create a role in your account whose trust policy allows the CI account, with deploy-only permissions',
-            'Add the CI account’s users to your IAM groups',
-            'Make all your resources public during deploys'
-          ],
-          answer: 1,
-          explain: 'The trust policy controls who can assume the role; the permissions policy limits what they can do once they have.'
+          explain: 'A region contains several AZs. Each fails independently, which is why you spread across them.'
         }
       ]
     },
     {
       id: 't1-s3',
       type: 'lesson',
-      title: 'S3: object storage',
+      title: 'S3: where files and backups live',
       minutes: 7,
       cards: [
         {
           title: 'Buckets, keys and objects',
-          body: `<p>S3 stores <b>objects</b> (bytes + metadata) under <b>keys</b> in a <b>bucket</b>. Bucket names are globally unique; each bucket lives in one region.</p>
+          body: `<p><b>S3</b> stores files, called <b>objects</b>, under names called <b>keys</b>, inside a <b>bucket</b>. Bucket names are globally unique; each bucket lives in one region.</p>
 <pre class="diagram">s3://acme-uploads/users/42/avatar.png
      └ bucket ──┘ └──── key ─────────┘</pre>
-<p>There are no real folders: <code>users/42/</code> is just a key <b>prefix</b>. You can't append to or rename an object in place; you write a new one. Reads after writes are <b>strongly consistent</b>. Use it for user uploads, static assets, backups, logs and data lake files, not as a database.</p>`
+<p>There are no real folders: <code>users/42/</code> is just the start of the key. You don't edit an object in place; you upload a new one under the same key.</p>
+<p>Use S3 for user uploads, images, backups and logs. Keep files off your server's own disk: when the server dies, S3 still has them.</p>`
         },
         {
           title: 'Durability vs availability',
           body: `<p>Two different promises:</p>
-<ul><li><b>Durability</b>: will my data still exist? S3 Standard is designed for <b>eleven nines</b> (99.999999999%) by storing copies across multiple AZs.</li>
+<ul><li><b>Durability</b>: will my file still exist? S3 Standard is designed for <b>eleven nines</b> (99.999999999%) by keeping copies in several AZs.</li>
 <li><b>Availability</b>: can I read it right now? S3 Standard is designed for <b>99.99%</b>.</li></ul>
-<p>Data can be perfectly durable during a brief outage that makes it unavailable. One Zone classes keep data in a single AZ, so an AZ loss can destroy it. Durability does not protect against <b>you</b> deleting it: turn on <b>versioning</b> for that.</p>`
+<p>A file can be perfectly safe during a short outage that stops you reading it. And high durability only protects against AWS losing your data, not against <b>you</b> deleting it.</p>`
         },
         {
-          title: 'Storage classes',
-          body: `<ul><li><b>Standard</b>: hot data, millisecond access.</li>
-<li><b>Intelligent-Tiering</b>: moves objects between tiers based on access; good when you can't predict.</li>
-<li><b>Standard-IA / One Zone-IA</b>: cheaper storage, per-GB retrieval fee, minimum storage duration.</li>
-<li><b>Glacier Instant / Flexible Retrieval</b>: archives; instant or minutes-to-hours to restore.</li>
-<li><b>Glacier Deep Archive</b>: cheapest; restores take hours. Compliance archives.</li></ul>
-<p>Colder = cheaper to store, more expensive and slower to read.</p>`
+          title: 'Versioning: replication is not backup',
+          body: `<p>Unit 01 said <b>replication ≠ backup</b>. S3 shows why. Its copies across AZs are replication: if your code deletes or overwrites a file, every copy changes.</p>
+<p>Turn on <b>versioning</b> and S3 keeps every old version of an object:</p>
+<pre class="diagram">users/42/avatar.png
+  v3  (current)      uploaded today
+  v2                 uploaded last week
+  v1                 first upload</pre>
+<p>A delete then just hides the file behind a <b>delete marker</b>; you can bring old versions back. For your database, back up to S3 on a schedule, or use a managed database with automatic backups.</p>`
         },
         {
-          title: 'Lifecycle rules',
-          body: `<p>Lifecycle rules move or delete objects automatically by age and prefix:</p>
-<pre class="diagram">{
-  "Rules": [{
-    "ID": "age-out-logs",
-    "Filter": { "Prefix": "logs/" },
-    "Status": "Enabled",
-    "Transitions": [
-      { "Days": 30, "StorageClass": "STANDARD_IA" },
-      { "Days": 90, "StorageClass": "GLACIER" }
-    ],
-    "Expiration": { "Days": 365 }
-  }]
-}</pre>
-<p>This is how you keep log and backup costs flat as data grows. Rules can also clean up old object versions and incomplete multipart uploads.</p>`
+          title: 'Storage classes and lifecycle rules',
+          body: `<p>You can pay less for files you rarely read:</p>
+<ul><li><b>Standard</b>: everyday files, fast.</li>
+<li><b>Standard-IA</b> (infrequent access): cheaper to store, small fee per read.</li>
+<li><b>Glacier</b> classes: archives. Cheapest to store; the coldest take hours to restore.</li></ul>
+<p>A <b>lifecycle rule</b> moves or deletes files automatically by age:</p>
+<pre class="diagram">logs/ older than 30 days  → Standard-IA
+logs/ older than 90 days  → Glacier
+logs/ older than 365 days → delete</pre>
+<p>Colder means cheaper to keep, slower and pricier to read.</p>`
         },
         {
           title: 'Presigned URLs',
-          body: `<p>A <b>presigned URL</b> embeds a signature from your credentials and an expiry, so anyone holding it can do one specific operation on one object without AWS credentials.</p>
+          body: `<p>Keep buckets <b>private</b> (S3's <b>Block Public Access</b> setting does this). So how does a user download their own private file?</p>
+<p>A <b>presigned URL</b> is a link to a private file that expires. Your server creates it with its own credentials; anyone holding the link can do that one thing, on that one file, until it expires.</p>
 <pre class="diagram">$ aws s3 presign s3://acme-uploads/reports/q3.pdf --expires-in 600
-https://acme-uploads.s3.amazonaws.com/reports/q3.pdf?X-Amz-Algorithm=...</pre>
-<p>Classic upload design: client asks your API for a presigned <b>PUT</b> URL (generated with the SDK), then uploads <b>directly to S3</b>. Large files never pass through your servers. Keep the bucket private, enable <b>Block Public Access</b>, and serve public assets through a CDN like CloudFront.</p>`
+https://acme-uploads.s3.amazonaws.com/reports/q3.pdf?X-Amz-...</pre>
+<p>It works for uploads too: the app hands the browser an upload link, and the file goes straight to S3 instead of through your server.</p>`
         }
       ],
       quiz: [
@@ -309,26 +199,26 @@ https://acme-uploads.s3.amazonaws.com/reports/q3.pdf?X-Amz-Algorithm=...</pre>
           explain: 'After 30 days it moved to Standard-IA and after 90 to Glacier. It is deleted at 365 days.'
         },
         {
-          q: 'Users upload videos of up to 2 GB. What is the best upload path?',
+          q: 'A bug in your app deletes users/42/avatar.png. S3 keeps copies in three AZs. Can you get the photo back?',
           options: [
-            'Stream the file through your API servers into S3',
-            'API returns a presigned PUT URL; the client uploads directly to S3',
-            'Make the bucket publicly writable',
-            'Store the video in the database as a BLOB'
+            'Yes, the copies in the other AZs still have it',
+            'Only if versioning was turned on for the bucket',
+            'Yes, S3 keeps deleted files for 30 days by default',
+            'No, deleted objects can never be recovered'
           ],
           answer: 1,
-          explain: 'Presigned uploads keep big payloads off your servers while the bucket stays private. Multipart upload handles very large files.'
+          explain: 'Copies across AZs are replication: the delete reaches all of them. Versioning keeps the old version behind a delete marker.'
         },
         {
           q: 'S3 Standard is designed for 11 nines of durability and 99.99% availability. What does that mean?',
           options: [
-            'Your object is extremely unlikely to be lost, but a request may occasionally fail',
+            'Your file is extremely unlikely to be lost, but a request may occasionally fail',
             'S3 is never down',
-            'Deleted objects can always be recovered',
-            'Reads are 11 times faster than EBS'
+            'Deleted files can always be recovered',
+            'Reads are 11 times faster than a normal disk'
           ],
           answer: 0,
-          explain: 'Durability is about not losing data; availability is about reaching it. Recovering from your own deletes needs versioning.'
+          explain: 'Durability is about not losing data; availability is about reaching it right now.'
         },
         {
           q: 'Read the command. What does the output URL allow?',
@@ -337,41 +227,159 @@ https://acme-uploads.s3.amazonaws.com/reports/q3.pdf?X-Amz-Algorithm=...</pre>
             'Anyone can list the whole bucket for 10 minutes',
             'Anyone can upload to any key for 600 days',
             'Anyone holding it can download q3.pdf for 10 minutes',
-            'Only IAM users in your account can download q3.pdf'
+            'Only people with AWS accounts can download q3.pdf'
           ],
           answer: 2,
-          explain: 'The CLI presign command signs a GET for one object; --expires-in is in seconds. Upload URLs are generated with the SDK.'
+          explain: 'It is a temporary link to one private file. --expires-in is in seconds, so 600 means 10 minutes.'
         },
         {
           q: 'You must keep audit records for 7 years and will almost never read them. Cheapest fit?',
-          options: ['S3 Standard', 'Glacier Deep Archive', 'EBS snapshots', 'One Zone-IA'],
+          options: ['S3 Standard', 'The EC2 server’s own disk', 'A Glacier archive class', 'Standard-IA'],
+          answer: 2,
+          explain: 'Glacier classes have the lowest storage cost; slow restores are fine for files you almost never read.'
+        }
+      ]
+    },
+    {
+      id: 't1-access',
+      type: 'lesson',
+      title: 'Who can touch what: access basics',
+      minutes: 6,
+      cards: [
+        {
+          title: 'The root account and MFA',
+          body: `<p>The email you sign up with becomes the <b>root user</b>. It can do anything, including deleting everything and closing the account.</p>
+<ul><li>Turn on <b>MFA</b> (multi-factor authentication: a code from your phone or a hardware key) right away.</li>
+<li>Create a separate everyday login for yourself and lock root away.</li>
+<li>Use root only for the rare account-level tasks that need it.</li></ul>
+<p>A stolen root password with no MFA means someone else owns your company's infrastructure.</p>`
+        },
+        {
+          title: 'Users vs roles',
+          body: `<p>AWS's permission system is called <b>IAM</b> (Identity and Access Management). Two kinds of identity matter first:</p>
+<ul><li><b>User</b>: a long-lived identity with a password or access keys. Think "a person's login".</li>
+<li><b>Role</b>: a set of permissions that something <i>puts on</i> for a while. It has no permanent password; AWS hands out short-lived credentials automatically.</li></ul>
+<p>Rule of thumb: <b>code gets a role</b>. Attach a role to your EC2 server and the AWS SDK on it picks up credentials by itself, with nothing to store or leak.</p>`
+        },
+        {
+          title: 'Least privilege',
+          body: `<p><b>Least privilege</b> means each person or program gets only the permissions its job needs. If it's hacked or buggy, the damage stays small.</p>
+<p>Permissions are written as <b>policies</b>. This one lets the app read and upload photos in one bucket, and nothing else:</p>
+<pre class="diagram">{
+  "Version": "2012-10-17",
+  "Statement": [{
+    "Effect": "Allow",
+    "Action": ["s3:GetObject", "s3:PutObject"],
+    "Resource": "arn:aws:s3:::acme-uploads/*"
+  }]
+}</pre>
+<p>Anything not listed is not allowed. Your app can't delete photos or touch other buckets.</p>`
+        },
+        {
+          title: 'Never put access keys in code or Git',
+          body: `<p><b>Access keys</b> are a username/password pair for programs. Bots scan public GitHub repos and find leaked keys within minutes, then run up huge bills on your account.</p>
+<ul><li>On EC2, use a <b>role</b>: there are no keys to leak.</li>
+<li>On your laptop, keep credentials in your local AWS CLI config (<code>~/.aws/</code>), never in the repo.</li>
+<li>Add <code>.env</code> to <code>.gitignore</code>.</li>
+<li>Leaked a key? Deactivate it immediately. Deleting the commit isn't enough: Git history keeps it.</li></ul>`
+        }
+      ],
+      quiz: [
+        {
+          q: 'You just created an AWS account. What should you do with the root user?',
+          options: [
+            'Use it for daily work, since it never hits permission errors',
+            'Share it with the team so everyone has access',
+            'Turn on MFA, create a separate everyday login, and rarely use root',
+            'Create access keys for it and store them in your app'
+          ],
+          answer: 2,
+          explain: 'Root can do anything. Protect it with MFA and keep it for the rare tasks that need it.'
+        },
+        {
+          q: 'Your app on EC2 needs to read files from S3. What is the recommended way to give it access?',
+          options: [
+            'Put an IAM user’s access keys in an .env file on the server',
+            'Use the root account’s keys, since they always work',
+            'Make the bucket public',
+            'Attach an IAM role to the EC2 instance'
+          ],
+          answer: 3,
+          explain: 'A role hands the instance short-lived credentials automatically, so there are no long-lived keys to leak.'
+        },
+        {
+          q: 'Read the code. What is the problem?',
+          code: `import { S3Client } from '@aws-sdk/client-s3'
+
+const s3 = new S3Client({
+  region: 'us-east-1',
+  credentials: {
+    accessKeyId: 'AKIAIOSFODNN7EXAMPLE',
+    secretAccessKey: 'wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY'
+  }
+})`,
+          options: [
+            'Access keys are hard-coded, so anyone who sees the repo can use them',
+            'The region must be set in an environment variable',
+            'S3Client cannot take credentials',
+            'Access keys must be lowercase'
+          ],
+          answer: 0,
+          explain: 'Keys in code end up in Git, where bots find them. On EC2 use a role; locally use your AWS CLI config.'
+        },
+        {
+          q: 'Read the policy attached to your app’s role. The app tries to delete a photo in acme-uploads. What happens?',
+          code: `{
+  "Version": "2012-10-17",
+  "Statement": [{
+    "Effect": "Allow",
+    "Action": ["s3:GetObject", "s3:PutObject"],
+    "Resource": "arn:aws:s3:::acme-uploads/*"
+  }]
+}`,
+          options: [
+            'It works, because the role can access acme-uploads',
+            'It is refused, because deleting is not in the allowed actions',
+            'It works, because PutObject includes deleting',
+            'It deletes the photo from every bucket'
+          ],
           answer: 1,
-          explain: 'Deep Archive has the lowest storage cost; slow restores are fine for rarely-read compliance data.'
+          explain: 'The policy allows reading and uploading only. Anything not allowed is refused.'
+        },
+        {
+          q: 'What does least privilege mean?',
+          options: [
+            'Give every service admin access so nothing breaks',
+            'Only one person in the company may use AWS',
+            'Use the cheapest instance type possible',
+            'Give each person or program only the permissions its job needs'
+          ],
+          answer: 3,
+          explain: 'Small permissions keep the damage small when a key leaks or code misbehaves.'
         }
       ]
     },
     {
       id: 't1-byte-first-aws',
       type: 'byte',
-      title: 'Interview Byte: leaving the single VPS',
+      title: 'Interview Byte: never lose uploads again',
       minutes: 6,
       prompt:
-        'Your startup runs everything (web app, Postgres, uploaded files) on a single VPS. You are moving to AWS. Sketch the first architecture and explain why each piece is there.',
-      hints: ['What on the VPS is a single point of failure?', 'Where do files and the database live once app servers are disposable?', 'Who gets which credentials?'],
-      model: `<ol><li><b>One region, two or more AZs</b> inside a VPC: public subnets for the load balancer, private subnets for app and DB.</li>
-<li><b>ALB</b> across AZs in front of an <b>auto scaling group</b> of EC2 instances (min 2, one per AZ), built from a launch template. Instances are stateless and replaceable.</li>
-<li><b>Postgres on RDS Multi-AZ</b>: managed backups, point-in-time recovery, automatic failover. No more hand-run DB.</li>
-<li><b>Uploads in S3</b>, private bucket, versioning on. Clients upload via <b>presigned URLs</b>; CloudFront serves public assets.</li>
-<li><b>IAM roles</b>: the instance role can access only its bucket and secrets. Humans sign in via SSO; no access keys in code.</li>
-<li><b>Sessions</b> in Redis or signed cookies so any instance can serve any user.</li>
-<li>Cost: on-demand to start, Savings Plans once the baseline is known.</li></ol>`,
+        'Your side project’s single server died and took users’ uploaded photos with it. Using AWS, how would you set things up so a dead machine can’t lose data again?',
+      hints: ['Where should files live, if not on the server’s disk?', 'Replication is not backup: what protects you from a bad delete?', 'What about the database, and a whole AZ going down?'],
+      model: `<ol><li><b>One EC2 server</b> in a region near your users, launched from an <b>AMI</b> so a replacement boots identical in minutes. The server holds no data you can't lose.</li>
+<li><b>Uploads go to S3</b>, not the server's disk. S3 keeps copies across AZs. Bucket stays private; users get <b>presigned URLs</b>.</li>
+<li><b>Versioning on</b> the bucket, because replication is not backup: a buggy delete is undoable.</li>
+<li><b>Database</b>: a managed database (RDS) with <b>automated backups</b>, or scheduled dumps copied to S3. Test a restore once.</li>
+<li><b>Second AZ</b> as the next step: a managed DB standby in another AZ so an AZ outage doesn't take the data offline.</li>
+<li><b>Access</b>: the server uses an IAM role scoped to its bucket; root has MFA; no keys in code.</li></ol>`,
       points: [
-        'Spread across at least two AZs',
-        'Load balancer + auto scaling group of stateless instances',
-        'Managed database with Multi-AZ failover and backups',
-        'Files moved to S3 (presigned uploads, private bucket)',
-        'IAM roles with least privilege, no hard-coded keys',
-        'Mentioned cost model or what to defer (multi-region, Kubernetes)'
+        'Moved uploads off the server into S3',
+        'Turned on versioning and explained replication vs backup',
+        'Database backups (managed automated backups or dumps to S3)',
+        'Server is replaceable (AMI), holds no irreplaceable data',
+        'Mentioned a second AZ for the data',
+        'Role with least privilege, MFA on root, no keys in code'
       ]
     }
   ]
@@ -394,6 +402,12 @@ export const T2_CONTAINERS: Unit = {
       title: 'Images, layers and the Dockerfile',
       minutes: 7,
       cards: [
+        {
+          title: 'Why containers?',
+          body: `<p>"It works on my machine" is the oldest bug in software. Your laptop has one Node version and some system libraries; the server has others, and the app breaks.</p>
+<p>A <b>container</b> packages your app <b>plus everything it depends on</b> (runtime, libraries, config defaults) into one unit that runs the same on your laptop, in CI and on any server.</p>
+<p>This is what makes <b>horizontal scaling</b> from Unit 03 easy: need ten copies of the app? Start ten identical containers from the same package. No hand-setup per server.</p>`
+        },
         {
           title: 'Images vs containers',
           body: `<p>An <b>image</b> is a read-only, layered filesystem plus metadata (default command, env, exposed ports). A <b>container</b> is a running process started from an image, with a thin <b>writable layer</b> on top. Image is to container as class is to object.</p>
@@ -681,7 +695,7 @@ curl: (56) Recv failure: Connection reset by peer`,
 export const T3_ORCHESTRATION: Unit = {
   id: 't3',
   track: 'tools',
-  requires: ['u3'],
+  requires: ['u3', 'u4'],
   teaches: ['kubernetes', 'managed-kubernetes', 'helm', 'ecs-fargate', 'aws-lambda', 'cloud-run', 'vercel'],
   title: 'Orchestration & serverless',
   subtitle: 'Kubernetes, Lambda and picking the right runtime',
@@ -728,15 +742,15 @@ spec:
         },
         {
           title: 'Services: stable addresses',
-          body: `<p>Pods come and go, so clients talk to a <b>Service</b>: a stable virtual IP and DNS name (<code>api.default.svc.cluster.local</code>, or just <code>api</code> in the same namespace) that load-balances across pods whose labels match its <code>selector</code>.</p>
+          body: `<p>Pods come and go, so clients talk to a <b>Service</b>: a stable virtual IP and DNS name (<code>api.default.svc.cluster.local</code>, or just <code>api</code> in the same namespace) that load-balances across pods whose labels match its <code>selector</code>. Think of it as a built-in <b>L4 load balancer</b> (Unit 04): it spreads connections, without looking at URLs.</p>
 <ul><li><b>ClusterIP</b> (default): reachable only inside the cluster.</li>
 <li><b>NodePort</b>: opens a port on every node.</li>
 <li><b>LoadBalancer</b>: asks the cloud for an external load balancer.</li></ul>
-<p>Only pods that are <b>ready</b> receive traffic.</p>`
+<p>Only pods that pass their <b>readiness</b> check receive traffic, just like a load balancer skipping servers that fail health checks.</p>`
         },
         {
           title: 'Ingress: HTTP routing',
-          body: `<p>An <b>Ingress</b> routes external HTTP(S) by host and path to Services, and can terminate TLS:</p>
+          body: `<p>An <b>Ingress</b> is <b>L7 routing</b> from Unit 04: it reads the HTTP host and path, sends each request to the right Service, and can terminate TLS:</p>
 <pre class="diagram">api.acme.com/      → Service web
 api.acme.com/v1/   → Service api</pre>
 <p>An Ingress object does nothing on its own. You need an <b>ingress controller</b> running in the cluster (ingress-nginx, Traefik, the AWS Load Balancer Controller) to implement it. The newer <b>Gateway API</b> is the successor model for this job. One load balancer in front of many services is cheaper than one per Service.</p>`
@@ -830,7 +844,7 @@ spec:
           body: `<ul><li><b>Readiness probe</b> fails → pod is <b>removed from Service endpoints</b>. No traffic, no restart. Use for "warming up" or "temporarily can't serve".</li>
 <li><b>Liveness probe</b> fails → kubelet <b>restarts the container</b>. Use only for "stuck and won't recover on its own" (deadlock).</li>
 <li><b>Startup probe</b>: holds off the other probes until a slow-starting app is up.</li></ul>
-<p>Without readiness, a rolling update sends traffic to pods that haven't finished booting.</p>`
+<p>These are the <b>health checks</b> from Unit 04, split in two: readiness is the load balancer's "send traffic here?" check; liveness adds "restart it?". Without readiness, a rolling update sends traffic to pods that haven't finished booting.</p>`
         },
         {
           title: 'Probe config and the classic mistake',
@@ -991,6 +1005,13 @@ api    Deployment/api   <unknown>/60%   3         20        3`,
 <li><b>Vercel / Netlify</b>: git-push deploys and preview URLs per pull request, aimed at frontends (e.g. Next.js) with serverless and edge functions for the API layer.</li></ul>`
         },
         {
+          title: 'Scaling plain VMs: auto scaling groups',
+          body: `<p>Not every app runs in containers. An EC2 <b>auto scaling group</b> (ASG) does horizontal scaling (Unit 03) for plain VMs. You give it a <b>launch template</b> (AMI, instance type), subnets in several AZs (each subnet sits in one AZ), and three numbers:</p>
+<pre class="diagram">min 2   desired 4   max 10
+policy: target tracking, average CPU = 50%</pre>
+<p>Put a load balancer in front. If an instance fails its <b>health check</b> (Unit 04), the ASG replaces it. Scaling policies move <code>desired</code> between min and max. This only works if instances are <b>stateless</b>: sessions and files live elsewhere.</p>`
+        },
+        {
           title: 'Choosing a runtime',
           body: `<ul><li><b>Lambda</b>: event-driven glue, spiky or low traffic, short tasks. Watch cold starts, 15-minute cap, connection limits, and cost at sustained high load.</li>
 <li><b>Cloud Run / Fargate</b>: you have a container and want little ops. Good default for a typical web service.</li>
@@ -1048,6 +1069,22 @@ export const handler = async (event) => {
           ],
           answer: 0,
           explain: 'Provisioned concurrency keeps pre-initialized environments ready, removing cold starts for that capacity. Reserved concurrency 0 would block it entirely.'
+        },
+        {
+          q: 'Read the command. What is the availability problem with this auto scaling group?',
+          code: `aws autoscaling create-auto-scaling-group \\
+  --auto-scaling-group-name web-asg \\
+  --launch-template LaunchTemplateName=web-lt \\
+  --min-size 2 --max-size 10 --desired-capacity 2 \\
+  --vpc-zone-identifier "subnet-0a1b2c3d"`,
+          options: [
+            'min-size 2 is too low to auto scale',
+            'A launch template cannot be referenced by name',
+            'desired-capacity must equal max-size',
+            'Only one subnet, so every instance lands in a single AZ'
+          ],
+          answer: 3,
+          explain: 'A subnet lives in exactly one AZ. List subnets from two or more AZs so an AZ outage does not take out the whole fleet.'
         },
         {
           q: 'How does Cloud Run differ from Lambda’s default model in handling concurrent requests?',

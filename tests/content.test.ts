@@ -52,11 +52,11 @@ describe('tools track', () => {
     }
   })
 
-  it('each module is 2–3 lessons plus a closing Interview Byte, with snippet questions', () => {
+  it('each module is 2–4 lessons plus a closing Interview Byte, with snippet questions', () => {
     for (const u of TOOL_TRACK) {
       const lessons = u.lessons.filter((l) => l.type === 'lesson')
       expect(lessons.length, u.id).toBeGreaterThanOrEqual(2)
-      expect(lessons.length, u.id).toBeLessThanOrEqual(3)
+      expect(lessons.length, u.id).toBeLessThanOrEqual(4)
       expect(u.lessons[u.lessons.length - 1].type, `${u.id}: last lesson`).toBe('byte')
       const snippets = lessons.flatMap((l) => (l.type === 'lesson' ? l.quiz : [])).filter((q) => q.code)
       expect(snippets.length, `${u.id}: code questions`).toBeGreaterThanOrEqual(3)
@@ -128,5 +128,27 @@ describe('tools', () => {
       const n = TOOLS.filter((t) => t.unit === id || t.alsoIn?.includes(id)).length
       expect(n, id).toBeGreaterThanOrEqual(5)
     }
+  })
+})
+
+describe('skill tree', () => {
+  it('places every unit and module exactly once, inside the canvas', async () => {
+    const { PLACEMENTS, TREE_VIEWBOX } = await import('../src/renderer/src/content/skilltree')
+    const ids = ALL_UNITS.map((u) => u.id)
+    for (const id of ids) {
+      const p = PLACEMENTS[id]
+      expect(p, `${id} has no placement`).toBeTruthy()
+      expect(p.x > 0 && p.x < TREE_VIEWBOX.width && p.y > 0 && p.y < TREE_VIEWBOX.height, `${id} off canvas`).toBe(true)
+    }
+    for (const id of Object.keys(PLACEMENTS)) expect(ids.includes(id), `${id} placed but not a unit/module`).toBe(true)
+  })
+
+  it('modules grow from the unit that actually unlocks them', async () => {
+    const { NODE_BY_ID } = await import('../src/renderer/src/lib/skilltree')
+    expect(NODE_BY_ID.t6.parent).toBe('u6') // requires u5 + u6 → gated by u6
+    expect(NODE_BY_ID.t10.parent).toBe('u8') // requires u3 + u8 → gated by u8
+    expect(NODE_BY_ID.t3.parent).toBe('u4') // orchestration needs load balancing first
+    expect(NODE_BY_ID.u1.parent).toBeNull()
+    expect(NODE_BY_ID.u2.parent).toBe('u1')
   })
 })

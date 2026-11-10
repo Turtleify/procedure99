@@ -13,10 +13,10 @@ const MODES: { id: StartupMode; icon: string; title: string; desc: string }[] = 
 ]
 
 const GOALS = [
-  { xp: 20, label: 'Casual', desc: '~5 min a day' },
-  { xp: 30, label: 'Regular', desc: '~10 min a day' },
-  { xp: 50, label: 'Serious', desc: '~15 min a day' },
-  { xp: 80, label: 'Intense', desc: '~25 min a day' }
+  { xp: 30, label: 'Casual', desc: '~10 min a day' },
+  { xp: 70, label: 'Regular', desc: '~20 min a day' },
+  { xp: 100, label: 'Serious', desc: '~30 min a day' },
+  { xp: 200, label: 'Intense', desc: '~60 min a day' }
 ]
 
 export function Settings(): JSX.Element {

@@ -257,7 +257,7 @@ async function captureViews(dir: string): Promise<void> {
   if (!win) return
   const wait = (ms: number): Promise<void> => new Promise((r) => setTimeout(r, ms))
   await wait(1500)
-  for (const view of ['home', 'path', 'review', 'daily', 'arena', 'toolbox', 'trophies', 'settings']) {
+  for (const view of ['home', 'path', 'review', 'daily', 'arena', 'lab', 'toolbox', 'trophies', 'settings']) {
     win.webContents.send('navigate', view)
     await wait(700)
     const img = await win.webContents.capturePage()

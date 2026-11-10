@@ -23,6 +23,7 @@ Use the installed build (`npm run dist`) for real daily use. It registers a prop
 | **Path** | 9 units following the video: servers and the 3 failures → requirements → monolith/microservices and scaling → request flow, load balancers, stateless → data modeling and SQL vs NoSQL → indexes → caching → replication and sharding → capstone. Each unit has concept-card lessons with quizzes, **Interview Bytes** (write an answer, compare it to a model answer, self-grade) and 4 **hands-on Docker labs** (Nginx LB, Postgres indexes, Redis cache-aside, Redis replication/failover). |
 | **Toolbox** | 18 collectible tool cards (Nginx, HAProxy, ALB, Postgres, MongoDB, Cassandra, DynamoDB, Redis, Kafka…) with strengths, weaknesses, and when to use or avoid each. Also 12 head-to-head tradeoff tables. Each unlocks when you finish its unit. |
 | **Tradeoff Arena** | 35 real-world scenarios. Pick the right tool or approach, then read why every option is right or wrong. |
+| **Design Lab** | LeetCode-style whiteboard problems (4 Easy, 5 Medium, 4 Hard: blog → URL shortener → news feed, chat, video). An Excalidraw-like canvas with real architecture shapes (clients, DNS, CDN, load balancer, API gateway, servers, workers, cache, SQL/NoSQL, object storage, search, queues). Drag shapes on, connect them with arrows, set how many copies run, then **Run checks** to test the design. Reference designs unlock when you solve a problem or after 3 runs. |
 | **Review** | Leitner spaced repetition. Every quiz question you answer comes back on a 1/2/4/8/16/32-day schedule. |
 
 ### Daily hooks
@@ -55,6 +56,7 @@ Content is plain TypeScript in `src/renderer/src/content/`:
 - `curriculum.ts`: units and lessons.
 - `scenarios.ts`: arena and daily incidents.
 - `tools.ts`: tool cards and comparisons.
+- `design-problems.ts`: Design Lab problems. Each has checks built from the helpers in `lib/design.ts` (`hasPath`, `hasEdge`, `instances`, `dbReplicated`…) and a reference design that must pass them all (enforced by `npm test`).
 
 `npm test` validates the content: answer indices in range, exactly one correct option per scenario, and valid unit references.
 

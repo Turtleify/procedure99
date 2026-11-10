@@ -5,9 +5,9 @@ export const T4_TRAFFIC: Unit = {
   id: 't4',
   track: 'tools',
   requires: ['u4'],
-  teaches: ['nginx', 'alb', 'route53', 'cloudflare-dns', 'cdn', 'api-gateway', 'kong'],
+  teaches: ['nginx', 'alb', 'route53', 'cloudflare-dns', 'api-gateway', 'kong'],
   title: 'Traffic in practice',
-  subtitle: 'Nginx, ALB/NLB, Route 53, CDNs and API gateways, with real config',
+  subtitle: 'Nginx, ALB/NLB, Route 53 DNS and API gateways, with real config',
   icon: 'network',
   color: '#26a69a',
   lessons: [
@@ -145,8 +145,8 @@ location /api/ { proxy_pass http://pool/; }
     {
       id: 't4-dns-cdn',
       type: 'lesson',
-      title: 'DNS and CDN caching for real',
-      minutes: 8,
+      title: 'DNS in practice with Route 53',
+      minutes: 7,
       cards: [
         {
           title: 'Route 53 record types',
@@ -171,24 +171,10 @@ www.example.com.  3600  IN  A  203.0.113.10</pre>
 <p>DNS failover is only as fast as the TTL plus health-check detection time. Expect tens of seconds to minutes, not milliseconds.</p>`
         },
         {
-          title: 'Cache-Control is the contract',
-          body: `<p>The origin tells browsers and CDNs what to cache with headers:</p>
-<pre class="diagram">Cache-Control: public, max-age=60, s-maxage=600,
-               stale-while-revalidate=30</pre>
-<ul><li><code>max-age</code>: browser caches for 60s. <code>s-maxage</code>: shared caches (CDN) use 600s instead.</li>
-<li><code>stale-while-revalidate</code>: serve the stale copy while refetching in the background.</li>
-<li><code>private</code>: only the browser may cache. <code>no-store</code>: nobody caches. <code>no-cache</code>: may store, but must revalidate first.</li></ul>
-<p><b>ETag</b> + <code>If-None-Match</code> lets a revalidation return a tiny <b>304 Not Modified</b> instead of the full body.</p>`
-        },
-        {
-          title: 'Cache keys and invalidation',
-          body: `<p>The <b>cache key</b> decides what counts as "the same" object. Usually host + path, plus whichever query strings, headers or cookies you add. In CloudFront this lives in a <b>cache policy</b>.</p>
-<p>Every extra key component splits the cache. Including a session cookie in the key makes every user a miss.</p>
-<p>Invalidation:</p>
-<pre class="diagram">aws cloudfront create-invalidation \\
-  --distribution-id E1ABCDEF \\
-  --paths "/index.html"</pre>
-<p>Better: <b>versioned filenames</b> (<code>app.3f9a1c.js</code>) cached for a year with <code>immutable</code>. Deploys publish new names, so nothing needs purging except the small HTML that references them.</p>`
+          title: 'What a CDN edge is for',
+          body: `<p>A <b>CDN</b> (CloudFront, Cloudflare, Fastly) runs servers called <b>edges</b> in many cities. You point a hostname such as <code>static.example.com</code> at the CDN, and each user connects to the edge nearest them.</p>
+<p>The edge keeps copies of <b>static files</b>: images, JS, CSS, video. A user in Sydney gets them from Sydney instead of crossing the planet to your origin in Virginia. Your servers see far less traffic, and TLS is set up close to the user.</p>
+<p>Personal API responses usually pass straight through to your origin. Unit 07 and the Caching in practice module cover the headers that control what an edge keeps.</p>`
         }
       ],
       quiz: [
@@ -199,18 +185,19 @@ www.example.com.  3600  IN  A  203.0.113.10</pre>
           explain: 'CNAMEs are not allowed at the apex and ALB IPs change. A Route 53 alias record handles both.'
         },
         {
-          q: 'What does this response header mean for a CDN in front of the origin?',
-          code: `HTTP/1.1 200 OK
-Cache-Control: public, max-age=0, s-maxage=300
-ETag: "a1b2c3"`,
+          q: 'What does this dig output tell you?',
+          code: `$ dig +noall +answer api.example.com
+api.example.com.        300  IN  CNAME  my-alb-123.us-east-1.elb.amazonaws.com.
+my-alb-123.us-east-1.elb.amazonaws.com.  60  IN  A  203.0.113.25
+my-alb-123.us-east-1.elb.amazonaws.com.  60  IN  A  203.0.113.26`,
           options: [
-            'Nobody may cache it',
-            'The CDN may cache it for 300s while browsers must revalidate every time',
-            'Browsers cache for 300s, the CDN revalidates every time',
-            'Only the browser may cache it'
+            'api.example.com has two A records that someone typed in by hand',
+            'api.example.com is a CNAME to the load balancer’s name, which currently resolves to two IPs that resolvers may cache for 60s',
+            'The load balancer is down, because it returned two answers',
+            'Resolvers will cache the two IPs for 300s'
           ],
           answer: 1,
-          explain: 's-maxage applies to shared caches like CDNs and overrides max-age there; max-age=0 makes browsers revalidate (cheaply, via the ETag).'
+          explain: 'The CNAME (TTL 300) points at the ALB’s DNS name, and AWS answers that name with its current IPs (TTL 60). That is why you never hardcode ALB IPs.'
         },
         {
           q: 'You plan to move www.example.com to a new IP tomorrow. The record has TTL 86400. What should you do today?',
@@ -224,32 +211,27 @@ ETag: "a1b2c3"`,
           explain: 'Resolvers keep the old answer for up to the old TTL, so lower it at least one TTL ahead of the switch.'
         },
         {
-          q: 'After adding the Cookie header to your CloudFront cache key, the hit ratio dropped from 95% to 3%. Why?',
-          options: [
-            'Each user’s unique session cookie makes their requests separate cache entries',
-            'CloudFront cannot cache responses with cookies at all',
-            'Cookies disable s-maxage',
-            'The TTL was reset to zero'
-          ],
+          q: 'You are moving to a new stack and want only 10% of users on it at first. Which Route 53 routing policy?',
+          options: ['Weighted', 'Latency', 'Geolocation', 'Failover'],
           answer: 0,
-          explain: 'Anything in the cache key splits the cache. Per-user cookies turn a shared cache into a per-user one.'
-        },
-        {
-          q: 'Your team runs a full "/*" invalidation on every deploy. What is the more standard approach for JS/CSS?',
-          options: [
-            'Set no-store on everything',
-            'Lower the CDN TTL to 1 second',
-            'Content-hashed filenames with a long max-age and immutable; only the HTML is short-lived',
-            'Turn off the CDN during deploys'
-          ],
-          answer: 2,
-          explain: 'New content gets a new URL, so old cached copies never need purging and hit ratio stays high.'
+          explain: 'Weighted routing splits answers by weight, e.g. 90/10, and you shift the weights as confidence grows.'
         },
         {
           q: 'You use Route 53 failover routing with TTL 300. The primary region dies. Roughly how fast do most users move?',
           options: ['Instantly', 'Within a few minutes: health check detection plus up to the TTL', 'Only after you edit the record by hand', 'Never, failover only works for new users'],
           answer: 1,
           explain: 'Route 53 flips the answer once the health check fails, but resolvers keep the cached answer until the TTL expires.'
+        },
+        {
+          q: 'Users in Australia say product images load slowly. Your only servers are in us-east-1. Simplest effective fix?',
+          options: [
+            'Lower the DNS TTL on the image hostname',
+            'Switch the load balancer to least connections',
+            'Add more app servers in us-east-1',
+            'Serve images through a CDN so they come from an edge near the user'
+          ],
+          answer: 3,
+          explain: 'The delay is distance. A CDN edge near the user serves the static files locally and only goes back to your origin when it lacks a copy.'
         }
       ]
     },
@@ -349,22 +331,22 @@ ETag: "a1b2c3"`,
         'A user types https://shop.example.com/api/cart into their browser. Trace the request from the URL bar to the app server and back, naming the actual AWS or Cloudflare pieces at each hop and what each one does.',
       hints: [
         'Start with DNS: which record type, and where does it point?',
-        'Where does TLS terminate, and where can the response be cached?',
+        'Where does TLS terminate, and which responses can an edge serve from its copy?',
         'How does the app server learn the real client IP and protocol?'
       ],
       model: `<ol><li><b>DNS</b>: the resolver asks Route 53 (or Cloudflare DNS). An <b>alias</b> record for <code>shop.example.com</code> points to a CloudFront distribution; the answer is cached for its TTL.</li>
-<li><b>CDN edge</b>: the browser opens TLS to the nearest CloudFront POP. A behavior for <code>/api/*</code> uses a no-cache policy and forwards auth headers; <code>/static/*</code> is served from cache.</li>
+<li><b>CDN edge</b>: the browser opens TLS to the nearest CloudFront edge. <code>/static/*</code> files are served from the edge's copy; <code>/api/*</code> requests pass straight through to the origin with their auth headers.</li>
 <li><b>WAF</b> rules and rate limits apply at the edge.</li>
 <li><b>Origin</b>: CloudFront forwards to an <b>ALB</b>. Its HTTPS listener rule matches <code>/api/*</code> and picks a healthy target from the cart <b>target group</b>.</li>
 <li><b>App</b>: the service reads <code>X-Forwarded-For</code>/<code>X-Forwarded-Proto</code>, checks the session or JWT, reads Redis/DB.</li>
-<li><b>Back</b>: the response flows ALB to CloudFront to the browser, with <code>Cache-Control: private, no-store</code> so the cart is never shared-cached.</li></ol>`,
+<li><b>Back</b>: the response flows ALB to CloudFront to the browser. The cart is personal, so the edge must not keep a copy to hand to other users.</li></ol>`,
       points: [
         'DNS lookup with the right record type (alias/CNAME flattening) and TTL',
         'TLS termination point named (CDN edge and/or ALB with an ACM cert)',
-        'CDN caches static paths but not personalized API responses',
+        'CDN edge serves static files but passes personal API responses through',
         'ALB listener rule and target group with health checks',
         'Client IP/protocol passed via X-Forwarded-* headers',
-        'Correct Cache-Control on the way back'
+        'Response path back through the same hops, with the cart never shared between users'
       ]
     }
   ]
@@ -389,11 +371,11 @@ export const T5_AUTH: Unit = {
       cards: [
         {
           title: 'Server-side sessions',
-          body: `<p>On login, the server creates a random session id, stores the session data server-side, and sends the id in a cookie. Redis is the usual store:</p>
-<pre class="diagram">SET sess:9f2c... '{"uid":42}' EX 1800
-SADD user:42:sessions 9f2c...
-DEL sess:9f2c...          # logout</pre>
-<p>Pros: instant revocation (delete the key), small cookie, nothing sensitive in the browser. Cost: a store lookup on every request, which Redis makes cheap. Keeping a per-user set of session ids makes "log out everywhere" one loop of deletes.</p>`
+          body: `<p>On login, the server creates a random session id, stores the session data server-side, and sends the id in a cookie. The store must be <b>shared</b> by every app server (that is what keeps the servers stateless), so it is usually a shared fast in-memory key-value store such as Redis:</p>
+<pre class="diagram">SET sess:9f2c... '{"uid":42}' EX 1800   # save, expire in 30 min
+SADD user:42:sessions 9f2c...           # remember user 42's sessions
+DEL sess:9f2c...                        # logout</pre>
+<p>Pros: instant revocation (delete the entry), small cookie, nothing sensitive in the browser. Cost: a store lookup on every request, which an in-memory store makes cheap. Keeping a per-user list of session ids makes "log out everywhere" one loop of deletes.</p>`
         },
         {
           title: 'Cookie flags that matter',

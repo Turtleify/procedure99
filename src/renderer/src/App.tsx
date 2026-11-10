@@ -3,7 +3,8 @@ import { dateStr } from '../../shared/dates'
 import { Bar } from './components/bits'
 import { Icon } from './components/Icon'
 import { LevelUpModal } from './components/LevelUp'
-import { Confetti, Toasts, XpPops } from './components/Overlays'
+import { Confetti, FlyingXp, Toasts, XpPops } from './components/Overlays'
+import { RanksModal } from './components/Ranks'
 import { levelInfo } from './lib/levels'
 import { initMusic, nowPlaying, onTrackChange, setMusicMuted, setMusicVolume, setWindowVisible, type Track } from './lib/music'
 import { installUiSounds, setSoundPrefs } from './lib/sound'
@@ -12,6 +13,7 @@ import { api, useStore, type View } from './store'
 import { Home } from './views/Home'
 import { LessonPlayer } from './views/LessonPlayer'
 import { Path } from './views/Path'
+import { DesignLab } from './views/DesignLab'
 import { Arena, DailyIncident, Review } from './views/Practice'
 import { Settings } from './views/Settings'
 import { Toolbox } from './views/Toolbox'
@@ -22,6 +24,7 @@ const NAV: { view: View; icon: string; label: string }[] = [
   { view: 'path', icon: 'map', label: 'Path' },
   { view: 'review', icon: 'brain', label: 'Review' },
   { view: 'arena', icon: 'swords', label: 'Arena' },
+  { view: 'lab', icon: 'pen-tool', label: 'Design Lab' },
   { view: 'toolbox', icon: 'wrench', label: 'Toolbox' },
   { view: 'trophies', icon: 'trophy', label: 'Trophies' },
   { view: 'settings', icon: 'settings', label: 'Settings' }
@@ -162,6 +165,7 @@ function TopBar(): JSX.Element {
   const lvl = levelInfo(s.xp)
   const lit = !!day?.goalMet
   const pad = (n: number): string => String(n).padStart(2, '0')
+  const [ranksOpen, setRanksOpen] = useState(false)
   return (
     <header className="topbar">
       <button className={`readout ${lit ? 'lit' : ''}`} onClick={() => go('home')} title={lit ? 'Goal met today' : 'Hit your daily goal to extend the streak'}>
@@ -194,7 +198,12 @@ function TopBar(): JSX.Element {
       </div>
       <div className="spacer" />
       <MusicControl />
-      <div className="level" title={`${lvl.title} · ${lvl.into} / ${lvl.need} XP to level ${lvl.level + 1}`}>
+      <button
+        className="level"
+        onClick={() => setRanksOpen(true)}
+        title={`${lvl.title} · ${lvl.into} / ${lvl.need} XP to level ${lvl.level + 1} · click to see all ranks`}
+        aria-label={`Level ${lvl.level}, ${lvl.title}, ${lvl.into} of ${lvl.need} XP. Show all ranks`}
+      >
         <div>
           <div className="readout-k">Level</div>
           <div className="level-num">{lvl.level}</div>
@@ -202,12 +211,15 @@ function TopBar(): JSX.Element {
         <div className="level-info">
           <div className="level-title">
             {lvl.title}
-            <span>{s.xp} XP</span>
+            <span>
+              {lvl.into}/{lvl.need} XP
+            </span>
           </div>
           <Bar value={lvl.into} max={lvl.need} tone="paper" />
         </div>
         <XpPops />
-      </div>
+      </button>
+      {ranksOpen && <RanksModal onClose={() => setRanksOpen(false)} />}
       <WindowControls />
     </header>
   )
@@ -228,6 +240,8 @@ function CurrentView(): JSX.Element {
       return <Arena />
     case 'daily':
       return <DailyIncident />
+    case 'lab':
+      return <DesignLab />
     case 'toolbox':
       return <Toolbox />
     case 'trophies':
@@ -293,6 +307,7 @@ export default function App(): JSX.Element {
         </main>
       </div>
       <Toasts />
+      <FlyingXp />
       <LevelUpModal />
       <Confetti />
     </div>

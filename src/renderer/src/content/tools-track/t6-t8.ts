@@ -5,7 +5,7 @@ export const T6_POSTGRES: Unit = {
   id: 't6',
   track: 'tools',
   requires: ['u5', 'u6'],
-  teaches: ['postgres', 'rds', 'aurora'],
+  teaches: ['postgres', 'rds'],
   title: 'Postgres in practice',
   subtitle: 'Schemas, transactions, EXPLAIN, indexes and running it in production',
   icon: 'database',
@@ -252,23 +252,18 @@ default_pool_size = 40</pre>
 <p><b>transaction</b> mode gives the best reuse: a server connection is yours only for one transaction. Session state does not survive between transactions, so session <code>SET</code>, session advisory locks and <code>LISTEN</code> break. Check prepared statement support for your setup. AWS offers <b>RDS Proxy</b> as a managed alternative.</p>`
         },
         {
-          title: 'RDS: Multi-AZ and read replicas',
-          body: `<ul><li><b>Multi-AZ</b>: a synchronous standby in another Availability Zone. If the primary fails, RDS flips the DNS endpoint to the standby, usually in a minute or two. In the classic setup the standby does <b>not</b> serve reads. It is for availability.</li>
-<li><b>Read replicas</b>: <b>asynchronous</b> copies you can read from. They scale reads but can lag, so read-your-own-writes needs care.</li></ul>
-<p>Interview line: "Multi-AZ for failover, read replicas for read scaling. They solve different problems."</p>`
+          title: 'Managed Postgres (RDS): what AWS runs for you',
+          body: `<p><b>Amazon RDS for PostgreSQL</b> is still plain Postgres, but AWS runs the machine under it:</p>
+<ul><li><b>Patching</b>: OS and minor-version updates applied in a weekly maintenance window you choose.</li>
+<li><b>Automated backups</b> with a retention you set (up to 35 days), and point-in-time restore.</li>
+<li><b>Sizing</b>: you pick an instance class (vCPU and RAM) and storage, which can autoscale. Moving to a bigger class is a setting change, with a short restart.</li>
+<li><b>Config</b> via parameter groups instead of editing <code>postgresql.conf</code>. No SSH and no true superuser.</li></ul>
+<p>You still own schema, indexes, queries and connection counts. Copies and failover come in Unit 08.</p>`
         },
         {
           title: 'Backups and point-in-time recovery',
-          body: `<p>RDS takes daily snapshots plus continuous WAL archiving, so you can restore to <b>any second</b> within the retention window. A restore creates a <b>new instance</b>; you then repoint the app.</p>
-<p>Replicas are not backups: a bad <code>DELETE</code> replicates instantly. Self-hosted, tools like pgBackRest or WAL-G do the same job. Test restores, because an untested backup is a hope.</p>`
-        },
-        {
-          title: 'Aurora PostgreSQL',
-          body: `<p>Aurora keeps the Postgres interface but replaces storage. Data is replicated <b>six ways across three AZs</b> in a shared storage layer.</p>
-<ul><li>Replicas read the same storage, so lag is usually small and adding one doesn't copy data.</li>
-<li>Failover to a replica is typically faster than classic RDS.</li>
-<li>You get a <b>writer endpoint</b> and a load-balanced <b>reader endpoint</b>.</li></ul>
-<p>Tradeoff: higher cost and AWS lock-in. Writes still go to one primary, so it does not remove the need to shard at very high write volume.</p>`
+          body: `<p>Postgres writes every change to its <b>WAL</b> (write-ahead log) before applying it. RDS takes daily snapshots plus continuous WAL archiving, so you can restore to <b>any second</b> within the retention window. A restore creates a <b>new instance</b>; you then repoint the app.</p>
+<p>Copies are not backups: a bad <code>DELETE</code> is copied instantly. Self-hosted, tools like pgBackRest or WAL-G do the same job. Test restores, because an untested backup is a hope.</p>`
         }
       ],
       quiz: [
@@ -288,15 +283,26 @@ default_pool_size = 40`,
           explain: 'Transaction pooling multiplexes many client connections onto a small server pool, giving a server connection back after each transaction.'
         },
         {
-          q: 'Your RDS primary is at 90% CPU from read queries. Which change helps directly?',
+          q: 'Which job does RDS take off your hands compared with running Postgres yourself on EC2?',
           options: [
-            'Enable Multi-AZ',
-            'Increase the backup retention period',
-            'Add read replicas and send read-only queries to them',
-            'Switch PgBouncer to session mode'
+            'Choosing indexes for slow queries',
+            'Designing the schema',
+            'Patching the OS and Postgres minor versions, and taking automated backups',
+            'Keeping app connection counts under max_connections'
           ],
           answer: 2,
-          explain: 'Read replicas take read traffic. A classic Multi-AZ standby only exists for failover and serves no reads.'
+          explain: 'RDS runs the machine: patching, backups and point-in-time restore. Schema, indexes, queries and connection counts are still yours.'
+        },
+        {
+          q: 'Your app runs 40 pods, each with a connection pool of 25. Postgres has max_connections = 500. What happens when all pods are busy?',
+          options: [
+            'Postgres queues the extra connections until a slot frees up',
+            'New connections fail with "too many clients already", since 40 x 25 = 1,000 is above 500',
+            'Postgres raises max_connections automatically',
+            'Nothing; idle connections do not count toward the limit'
+          ],
+          answer: 1,
+          explain: 'max_connections is a hard cap on open connections, idle or not. Put PgBouncer in front or shrink per-pod pools.'
         },
         {
           q: 'Which feature breaks under PgBouncer transaction pooling?',
@@ -312,13 +318,13 @@ default_pool_size = 40`,
         {
           q: 'Someone runs a DELETE without a WHERE on production. What gets the data back?',
           options: [
-            'Promote a read replica',
-            'Point-in-time restore to just before the DELETE, into a new instance',
-            'Fail over to the Multi-AZ standby',
-            'Run VACUUM to recover the dead rows'
+            'Restart the instance so the transaction rolls back',
+            'Restore last week’s manual snapshot over the live database',
+            'Run VACUUM to recover the dead rows',
+            'Point-in-time restore to just before the DELETE, into a new instance'
           ],
-          answer: 1,
-          explain: 'Replicas and standbys copy the DELETE right away. PITR replays WAL up to a chosen moment before the mistake.'
+          answer: 3,
+          explain: 'A committed DELETE survives restarts. PITR replays WAL up to a chosen moment before the mistake, losing nothing earlier, unlike an old snapshot.'
         }
       ]
     },
@@ -336,7 +342,7 @@ default_pool_size = 40`,
       ],
       model: `<ol><li><b>Add the column nullable</b>: <code>ALTER TABLE orders ADD COLUMN region text;</code> Metadata-only, but set <code>lock_timeout</code> (e.g. 5s) and retry so a long-running query can't queue everyone behind your lock.</li>
 <li><b>Deploy app code</b> that writes <code>region</code> on every new and updated row.</li>
-<li><b>Backfill in batches</b> by primary key range (say 5–10k rows per transaction), with pauses. Watch replica lag and I/O. Make the job resumable.</li>
+<li><b>Backfill in batches</b> by primary key range (say 5–10k rows per transaction), with pauses. Watch CPU, I/O and lock waits, and slow down if they climb. Make the job resumable.</li>
 <li><b>Index if needed</b> with <code>CREATE INDEX CONCURRENTLY</code>.</li>
 <li><b>Enforce NOT NULL safely</b>: <code>ADD CONSTRAINT region_nn CHECK (region IS NOT NULL) NOT VALID;</code> then <code>VALIDATE CONSTRAINT</code>, which doesn't block writes. Modern Postgres can then <code>SET NOT NULL</code> using that check without a full scan.</li>
 <li><b>Verify</b> and then rely on it in reads. Keep each step reversible.</li></ol>`,
@@ -344,7 +350,7 @@ default_pool_size = 40`,
         'Added the column as nullable first (no table rewrite)',
         'Used lock_timeout or otherwise avoided lock queue pile-ups',
         'Dual-wrote from the app before backfilling',
-        'Backfilled in small batches, watching replication lag',
+        'Backfilled in small, resumable batches while watching database load',
         'Used CONCURRENTLY for any new index',
         'Added NOT NULL via NOT VALID check plus VALIDATE, not a blocking scan'
       ]
@@ -372,7 +378,7 @@ export const T7_NOSQL: Unit = {
         {
           title: 'Keys are everything',
           body: `<p>DynamoDB is a fully managed AWS key-value and document store. Every item has a <b>primary key</b>:</p>
-<ul><li><b>Partition key</b> (PK): hashed to choose the partition. Equality lookups only.</li>
+<ul><li><b>Partition key</b> (PK): DynamoDB spreads a table over many storage chunks called <b>partitions</b>, and hashes the PK to choose one. Equality lookups only.</li>
 <li><b>Sort key</b> (SK, optional): orders items <i>within</i> a partition. Supports <code>=</code>, <code>&lt;</code>, <code>&gt;</code>, <code>BETWEEN</code>, <code>begins_with</code>.</li></ul>
 <p>Items with the same PK form an <b>item collection</b>, stored together and sorted by SK. Items max out at 400 KB. There are no joins and no ad-hoc queries, so you design keys around access patterns up front.</p>`
         },
@@ -406,7 +412,7 @@ ORDER#9     ITEM#1             sku, qty</pre>
           title: 'Capacity and hot partitions',
           body: `<ul><li><b>On-demand</b>: pay per request, no planning. Good for spiky or unknown traffic.</li>
 <li><b>Provisioned</b>: set read/write capacity units, optionally with auto scaling. Cheaper for steady, predictable load.</li></ul>
-<p>Either way, each <b>partition</b> has its own throughput ceiling. If one key gets most traffic (a celebrity user, today's date as PK), you get throttled while the table as a whole is idle. Adaptive capacity helps, but can't split a single hot key. Fixes: high-cardinality keys, <b>write sharding</b> (<code>EVENTS#2025-06-01#7</code> with a random suffix 0–9), or caching hot reads with DAX or Redis.</p>`
+<p>A <b>partition</b> is a slice of storage on its own servers; every item lives in the slice its partition key hashes to. Each slice handles only so many reads and writes per second. If one key gets most traffic (a celebrity user, today's date as PK), that one slice is throttled while the rest of the table sits idle. Fixes: keys with many distinct values, or <b>write sharding</b> (<code>EVENTS#2025-06-01#7</code> with a random suffix 0–9) so one logical key spreads over several slices.</p>`
         }
       ],
       quiz: [
@@ -516,11 +522,10 @@ db.orders.find({ userId: 42 }).sort({ createdAt: -1 })
 <p>Put <code>$match</code> early so it can use an index and shrink the stream. <code>$lookup</code> does a join-like step, but if you need it on every hot query, rethink your model.</p>`
         },
         {
-          title: 'Replica sets',
-          body: `<p>A <b>replica set</b> is one <b>primary</b> that takes writes plus <b>secondaries</b> that replicate its oplog. If the primary dies, the members <b>elect</b> a new one, usually within seconds.</p>
-<ul><li><b>Write concern</b> <code>w: "majority"</code>: acknowledged only once most members have it, so it survives failover.</li>
-<li><b>Read preference</b>: <code>primary</code> by default. Reading from secondaries scales reads but may return stale data.</li></ul>
-<p>Use a replica set (3 members minimum) for HA. Add <b>sharding</b> by a shard key when one set can't hold the data or writes.</p>`
+          title: 'Where MongoDB fits',
+          body: `<p>Good fits: data that is <b>read and written as a whole object</b> and varies in shape. Product catalogs where each category has different attributes, content and CMS pages, user profiles and settings, event payloads.</p>
+<p>Weaker fits: data with many relationships you join in different ways, or workflows where most writes must change several records atomically. Postgres (with <code>jsonb</code> for the flexible parts) often covers both worlds.</p>
+<p>In production MongoDB runs as a <b>replica set</b> of copies on 3 servers; the Scaling data module covers how that works.</p>`
         }
       ],
       quiz: [
@@ -556,23 +561,23 @@ db.orders.find({ userId: 42 }).sort({ createdAt: -1 })
           q: 'explain("executionStats") shows COLLSCAN with totalDocsExamined: 4000000 and nReturned: 12. What do you do?',
           options: [
             'Add an index matching the query’s filter and sort fields',
-            'Add more secondaries',
-            'Switch write concern to majority',
+            'Embed the matching documents in a parent document',
+            'Move the filter into a $group stage',
             'Use $lookup instead of find'
           ],
           answer: 0,
           explain: 'COLLSCAN means no index was used. A compound index following equality, sort, range order fixes it.'
         },
         {
-          q: 'What does write concern w: "majority" guarantee?',
+          q: 'Which workload is the most natural fit for MongoDB?',
           options: [
-            'The write is applied to every member before acknowledging',
-            'The write is fsynced on the primary only',
-            'Reads from any secondary will see the write immediately',
-            'The write has reached a majority of replica set members, so it survives a primary failover'
+            'A ledger where every transfer updates two accounts atomically and is audited with ad-hoc joins',
+            'A reporting warehouse that joins ten tables in new ways every week',
+            'A key-value counter incremented millions of times per second',
+            'A product catalog where each category has different attributes and pages read one whole product at a time'
           ],
           answer: 3,
-          explain: 'A majority-acknowledged write will be on whichever member wins the next election, so it will not be rolled back.'
+          explain: 'Varying shapes read as whole documents is MongoDB’s sweet spot. Multi-record atomic writes and ad-hoc joins favor a relational database.'
         }
       ]
     },
@@ -591,7 +596,7 @@ db.orders.find({ userId: 42 }).sort({ createdAt: -1 })
   body            text,
   PRIMARY KEY ((conversation_id), sent_at)
 ) WITH CLUSTERING ORDER BY (sent_at DESC);</pre>
-<p>The <b>partition key</b> (<code>conversation_id</code>) is hashed onto the token ring and decides which nodes store the row. <b>Clustering columns</b> (<code>sent_at</code>) sort rows <i>inside</i> the partition. "Latest 50 messages in a conversation" is one sequential read on one partition.</p>`
+<p>The <b>partition key</b> (<code>conversation_id</code>) is hashed, and the hash decides which nodes store the row. <b>Clustering columns</b> (<code>sent_at</code>) sort rows <i>inside</i> the partition. "Latest 50 messages in a conversation" is one sequential read on one partition.</p>`
         },
         {
           title: 'Query-first modeling',
@@ -607,16 +612,17 @@ db.orders.find({ userId: 42 }).sort({ createdAt: -1 })
 <p>Watch <b>partition size</b>: a partition that grows forever gets slow. Bucket by time, e.g. <code>PRIMARY KEY ((conversation_id, month), sent_at)</code>.</p>`
         },
         {
-          title: 'Tunable consistency',
-          body: `<p>With replication factor <b>RF = 3</b>, each read and write picks how many replicas must answer:</p>
-<ul><li><b>ONE</b>: fastest, may read stale data.</li><li><b>QUORUM</b>: majority, here 2 of 3.</li><li><b>LOCAL_QUORUM</b>: majority in the local datacenter. Common in multi-region setups.</li><li><b>ALL</b>: every replica. One node down blocks the request.</li></ul>
-<p>If <b>R + W &gt; RF</b> (e.g. QUORUM writes + QUORUM reads), reads see the latest acknowledged write. Conflicts resolve by <b>last write wins</b> on timestamps. Deletes write <b>tombstones</b>, and lots of them slow reads.</p>`
+          title: 'Data is spread by partition key',
+          body: `<p>A Cassandra cluster is a group of <b>equal nodes</b> with no leader. Think of the possible hash values as a circle cut into slices, with each node owning some slices.</p>
+<pre class="diagram">hash(conv_17) -&gt; slice owned by node B  (a neighbour keeps a copy too)
+hash(conv_42) -&gt; slice owned by node E</pre>
+<p>So a query that names the partition key goes <b>straight to the right node</b>. One that doesn't would have to ask every node, which is why Cassandra refuses it without <code>ALLOW FILTERING</code>. Add nodes and each takes over some slices, so capacity grows. Copies and consistency are covered in the Scaling data module.</p>`
         },
         {
           title: 'Where it fits',
-          body: `<p>Pick Cassandra for <b>huge write volume</b>, <b>multi-datacenter</b> replication, and queries known in advance: messaging, time series, activity feeds, IoT.</p>
+          body: `<p>Pick Cassandra for <b>huge write volume</b>, clusters spread over <b>several datacenters</b>, and queries known in advance: messaging, time series, activity feeds, IoT.</p>
 <p>Avoid it for ad-hoc analytics, multi-row transactions, or fast-changing query patterns.</p>
-<p>Ops are heavy (compaction, repairs, tombstones). Managed options include DataStax Astra and Amazon Keyspaces. ScyllaDB is a compatible C++ reimplementation.</p>`
+<p>Ops are heavy (compaction, repairs, cleaning up deleted data). Managed options include DataStax Astra and Amazon Keyspaces. ScyllaDB is a compatible C++ reimplementation.</p>`
         }
       ],
       quiz: [
@@ -639,10 +645,15 @@ db.orders.find({ userId: 42 }).sort({ createdAt: -1 })
           explain: 'It names the partition key, so it reads one partition already sorted newest first. The others lack the partition key and need ALLOW FILTERING.'
         },
         {
-          q: 'RF = 3. Writes use QUORUM. Which read level guarantees you see the latest acknowledged write?',
-          options: ['ONE', 'ANY', 'TWO with writes at ONE', 'QUORUM'],
+          q: 'Your 6-node Cassandra cluster is near its write limit. You add 3 nodes. What happens?',
+          options: [
+            'Nothing until you elect one of the new nodes as leader',
+            'Only new partitions go to the new nodes; old data stays put forever',
+            'You must rebuild every table with a new partition key',
+            'The new nodes take over some hash slices, data for those slices moves to them, and write capacity grows'
+          ],
           answer: 3,
-          explain: 'QUORUM + QUORUM is 2 + 2 = 4 > 3, so the read and write sets overlap on at least one replica.'
+          explain: 'Nodes are equal and each owns slices of the hash range. New nodes take over slices, so load spreads across more machines.'
         },
         {
           q: 'Why does Cassandra modeling use one table per query?',
@@ -658,7 +669,7 @@ db.orders.find({ userId: 42 }).sort({ createdAt: -1 })
         {
           q: 'A chat partition keyed only by conversation_id has grown to millions of rows and reads are slow. What fixes it?',
           options: [
-            'Raise the consistency level to ALL',
+            'Add more nodes so the partition is split across them',
             'Add a time bucket to the partition key, e.g. (conversation_id, month)',
             'Add a secondary index on sent_at',
             'Switch to ALLOW FILTERING'
@@ -755,8 +766,8 @@ dress   -&gt; [2]</pre>
     "number_of_replicas": 1
   }
 }</pre>
-<p>An index is split into <b>primary shards</b> spread across nodes. Each shard is a self-contained Lucene index. <b>Replicas</b> are copies: they serve searches and take over if a node dies.</p>
-<p>Replica count can change any time. Primary shard count is fixed at creation, so changing it needs split, shrink or a reindex. Too many tiny shards waste memory, so size shards in the tens of GB, not MB.</p>`
+<p>A big index doesn't fit on one machine, so Elasticsearch <b>splits it into pieces called shards</b> and spreads them across nodes. A search asks every shard and merges the results. Each shard also gets <b>replicas</b>: copies on other nodes, kept for safety and to share search load.</p>
+<p>The practical gotcha: pick the number of shards when you create the index. Changing it later means building a new index. The replica count can change any time. Unit 08 and the Scaling data module go deeper.</p>`
         },
         {
           title: 'Near-real-time: the refresh interval',
@@ -800,10 +811,10 @@ dress   -&gt; [2]</pre>
             'PUT _settings with number_of_shards: 6',
             'Increase number_of_replicas to 2',
             'Restart the cluster with more nodes',
-            'Create a new index with 6 shards (or use the split API) and reindex, then move the alias'
+            'Create a new index with 6 shards, reindex into it, then move the alias'
           ],
           answer: 3,
-          explain: 'Primary shard count is fixed at creation. Replicas can be changed live, but they are copies, not more primaries.'
+          explain: 'The shard count is fixed when the index is created. Replicas can be changed live, but they are copies, not more pieces.'
         },
         {
           q: 'Which mapping type should a "brand" field use if you filter and aggregate on exact values?',
@@ -955,10 +966,15 @@ search.index(product)  // times out -&gt; now out of sync</pre>
 <p>Retries and a nightly reconcile job help, but drift is built into the approach.</p>`
         },
         {
-          title: 'Outbox and CDC',
-          body: `<ul><li><b>Transactional outbox</b>: in the <i>same DB transaction</i> as the change, insert a row into an <code>outbox</code> table. A relay reads it and publishes to a queue. A change is never committed without its event.</li>
-<li><b>CDC</b> (change data capture): a tool like <b>Debezium</b> reads the Postgres WAL (logical decoding) or MySQL binlog and streams every committed change to Kafka.</li></ul>
-<p>An <b>indexer</b> consumes the stream and bulk-writes to the search index. Use the row's version with <code>version_type=external</code> so stale events are rejected. Expect seconds of lag.</p>`
+          title: 'Keeping search in sync, simply',
+          body: `<p>Two simple approaches, often used together:</p>
+<ul><li><b>Periodic sync</b>: every few minutes, a job fetches rows changed since its last run and bulk-indexes them.</li>
+<li><b>Update right after the write</b>: after the DB commit, index the product (inline or in a background job) and accept brief drift when it fails.</li></ul>
+<pre class="diagram">SELECT id, name, description, price, updated_at
+FROM products
+WHERE updated_at &gt; :last_sync
+ORDER BY updated_at LIMIT 1000;</pre>
+<p>The sweep repairs anything the immediate update missed. Gotcha: hard-deleted rows never show up, so use a <code>deleted_at</code> soft delete. The Messaging and Scaling data modules show more robust approaches.</p>`
         },
         {
           title: 'Postgres full-text: the simpler option',
@@ -995,24 +1011,29 @@ LIMIT 20;</pre>
             'Elasticsearch will reject the document because the DB already committed'
           ],
           answer: 1,
-          explain: 'This is a dual write. The two systems have no shared transaction, so failures and reordering cause drift. Use an outbox or CDC.'
+          explain: 'This is a dual write. The two systems have no shared transaction, so a failure leaves search stale. Back it with a periodic sync that repairs drift.'
         },
         {
-          q: 'How does the transactional outbox pattern avoid lost search updates?',
+          q: 'A job runs this every 5 minutes and bulk-indexes the rows it returns. What is the main gap?',
+          code: `SELECT id, name, price, updated_at
+FROM products
+WHERE updated_at > :last_sync
+ORDER BY updated_at
+LIMIT 1000;`,
           options: [
-            'It writes to Elasticsearch inside the Postgres transaction',
-            'It locks the search index during DB writes',
-            'It replaces the search index with a DB view',
-            'The change and an outbox event row commit atomically in one DB transaction; a relay publishes the event later'
+            'It indexes products twice, corrupting the index',
+            'It cannot use an index, so it scans the whole table every run',
+            'Search can be ~5 minutes stale, and rows deleted from the table never appear, so they stay searchable',
+            'It locks the products table while it runs'
           ],
-          answer: 3,
-          explain: 'Both rows commit or neither does, so every committed change has an event to deliver, even if the relay retries later.'
+          answer: 2,
+          explain: 'A sweep only sees rows that still exist. Use a deleted_at soft delete so deletions show up as changes, and accept minutes of lag.'
         },
         {
           q: 'A startup has 200k products in Postgres and wants basic keyword search. Best first step?',
           options: [
             'Postgres full-text search with a tsvector column and a GIN index',
-            'A 6-node Elasticsearch cluster fed by Debezium',
+            'A 6-node Elasticsearch cluster with its own sync pipeline',
             'LIKE \'%term%\' queries on name and description',
             'A vector database'
           ],
@@ -1020,15 +1041,15 @@ LIMIT 20;</pre>
           explain: 'Postgres FTS handles this size well, with no new infrastructure and no sync problem. LIKE with a leading wildcard cannot use a B-tree index.'
         },
         {
-          q: 'Your CDC indexer sometimes processes an older update after a newer one. What prevents the older one from overwriting?',
+          q: 'Your Elasticsearch cluster lost its data after a bad upgrade. Postgres is fine. What do you do?',
           options: [
-            'Raising the refresh interval',
-            'Adding more replicas',
-            'Indexing with the row version and version_type=external',
-            'Using term instead of match queries'
+            'Restore the products table from the search index',
+            'Rebuild: create a new index, bulk-load it from Postgres, catch up recent changes, then point the alias at it',
+            'Wait for replicas to copy the data back from Postgres automatically',
+            'Tell users search is gone until next quarter'
           ],
-          answer: 2,
-          explain: 'External versioning makes Elasticsearch reject writes whose version is not higher than the stored one.'
+          answer: 1,
+          explain: 'Search is a derived copy of the database. Because Postgres is the source of truth, you can always rebuild the index from it.'
         }
       ]
     },
@@ -1047,15 +1068,15 @@ LIMIT 20;</pre>
       model: `<ol><li><b>Engine</b>: Elasticsearch/OpenSearch (or Algolia if buying). 50M docs: several primary shards, 1+ replica, behind an alias.</li>
 <li><b>Mapping</b>: <code>name</code> as <code>search_as_you_type</code> (or edge n-grams), <code>brand</code>/<code>category</code> as keyword, plus <code>popularity</code> and <code>in_stock</code>.</li>
 <li><b>Query</b>: <code>multi_match</code> <code>bool_prefix</code> with fuzziness, <code>name^3</code>, in-stock as a <code>filter</code>, <code>function_score</code> on popularity. Return ~10 hits with a small <code>_source</code>.</li>
-<li><b>Sync</b>: CDC (Debezium) or an outbox into Kafka, an indexer bulk-writing with external versions. A few seconds of lag is fine.</li>
-<li><b>Load</b>: debounce in the client, minimum 2 characters, cancel stale requests, cache hot prefixes in Redis/CDN.</li>
+<li><b>Sync</b>: Postgres stays the source of truth. A background job indexes each product right after it changes, and a sweep on <code>updated_at</code> (with soft deletes) every minute repairs anything missed. A minute of lag is fine for a catalog. At larger scale, CDC or an outbox (later modules) makes this robust.</li>
+<li><b>Load</b>: debounce in the client, minimum 2 characters, cancel stale requests, keep results for the most popular prefixes ready.</li>
 <li><b>Rebuilds</b>: reindex into a new index, then swap the alias. Track latency p99 and zero-result rate.</li></ol>`,
       points: [
         'Chose a dedicated search engine and justified it over Postgres at this scale',
         'Used prefix indexing (edge n-grams, search_as_you_type or completion suggester)',
         'Handled typos (fuzziness) and popularity in ranking',
-        'Kept the index in sync via CDC or outbox, not dual writes',
-        'Reduced load with debounce and caching of popular prefixes',
+        'Kept Postgres as the source of truth with a sync that repairs drift (sweep, background job, or CDC)',
+        'Reduced load with debounce, a minimum prefix length and popular-prefix results',
         'Mentioned shards/replicas or alias-based reindexing'
       ]
     }

@@ -5,7 +5,7 @@ export const T12_SHIPPING: Unit = {
   id: 't12',
   track: 'tools',
   requires: ['u9'],
-  teaches: ['git', 'github', 'github-actions', 'argo-cd', 'terraform', 'launchdarkly', 'unleash'],
+  teaches: ['git', 'github', 'github-actions', 'aws-iam', 'argo-cd', 'terraform', 'launchdarkly', 'unleash'],
   title: 'Shipping',
   subtitle: 'Git, CI/CD, Terraform and feature flags: from merged PR to production',
   icon: 'rocket',
@@ -109,6 +109,143 @@ jobs:
           options: ['Registries charge per build', 'Rebuilding per environment can produce a different artifact than the one you tested', 'Kubernetes requires it', 'It makes images smaller'],
           answer: 1,
           explain: 'Build once, deploy many. What you tested is exactly what ships.'
+        }
+      ]
+    },
+    {
+      id: 't12-iam',
+      type: 'lesson',
+      title: 'Cloud permissions in depth (IAM)',
+      minutes: 8,
+      cards: [
+        {
+          title: 'Policies are JSON',
+          body: `<p>AWS <b>IAM</b> decides who (a user, or a role that code assumes) can do what. Permissions are <b>policies</b>: statements of <b>Effect</b>, <b>Action</b>, <b>Resource</b> and an optional <b>Condition</b>.</p>
+<pre class="diagram">{
+  "Version": "2012-10-17",
+  "Statement": [{
+    "Effect": "Allow",
+    "Action": ["s3:GetObject", "s3:PutObject"],
+    "Resource": "arn:aws:s3:::acme-uploads/user-content/*"
+  }]
+}</pre>
+<p>Attach it to a role, user or group (<b>identity-based</b>). Some resources also take <b>resource-based</b> policies, like an S3 bucket policy, which can grant access to other accounts.</p>`
+        },
+        {
+          title: 'How a request is evaluated',
+          body: `<ol><li>Everything starts as an <b>implicit deny</b> (default deny).</li>
+<li>An applicable <b>Allow</b> grants access.</li>
+<li>Any <b>explicit Deny</b> wins over every Allow.</li></ol>
+<p>So you can grant broadly in one policy and fence off danger with a Deny, e.g. deny deleting anything under <code>prod/</code>. On top of that, organization-level guardrails (<b>Service Control Policies</b>) and <b>permission boundaries</b> cap what any policy can grant: they never add permissions, only limit them.</p>`
+        },
+        {
+          title: 'Roles and temporary credentials (STS)',
+          body: `<p>A <b>role</b> has no password or long-lived keys. Something <b>assumes</b> it, and <b>STS</b> (Security Token Service) returns temporary credentials that expire, typically after an hour.</p>
+<p>A role needs two policies:</p>
+<ul><li><b>Trust policy</b>: who may assume it (an AWS service, another account, an identity provider).</li>
+<li><b>Permissions policy</b>: what it can do once assumed.</li></ul>
+<pre class="diagram">"Principal": { "Service": "ec2.amazonaws.com" },
+"Action": "sts:AssumeRole"</pre>
+<p>That trust statement lets EC2 instances use the role (via an <b>instance profile</b>). Lambda execution roles and cross-account access work the same way.</p>`
+        },
+        {
+          title: 'Least privilege and classic gotchas',
+          body: `<ul><li>One role per service, scoped to its own bucket, queue or table. Avoid <code>"Action": "*"</code> and <code>"Resource": "*"</code> outside admin roles.</li>
+<li>Start narrow and widen on <code>AccessDenied</code>. IAM Access Analyzer and last-accessed data help trim unused permissions.</li>
+<li><b>Bucket vs object ARNs</b>: <code>s3:ListBucket</code> applies to <code>arn:aws:s3:::bucket</code>; <code>s3:GetObject</code> to <code>arn:aws:s3:::bucket/*</code>. Mixing them up gives a confusing AccessDenied.</li>
+<li><b>Leaked access keys</b> get scraped from Git within minutes. Roles and short-lived credentials remove the risk.</li>
+<li>Cross-account AccessDenied on assume? Check the <b>trust policy</b> first.</li></ul>`
+        },
+        {
+          title: 'CI deploys with OIDC, not stored keys',
+          body: `<p>GitHub Actions can prove its identity with a signed <b>OIDC token</b>. You register GitHub as an identity provider in IAM and create a deploy role whose trust policy accepts only your repo and branch:</p>
+<pre class="diagram">"Action": "sts:AssumeRoleWithWebIdentity",
+"Condition": { "StringLike": {
+  "token.actions.githubusercontent.com:sub":
+    "repo:acme/api:ref:refs/heads/main" } }</pre>
+<p>The workflow needs <code>permissions: id-token: write</code> and then runs <code>aws-actions/configure-aws-credentials</code> with <code>role-to-assume</code>. Each run gets credentials that expire soon after. No AWS keys stored as secrets, nothing to rotate or leak.</p>`
+        }
+      ],
+      quiz: [
+        {
+          q: 'Read both statements, attached to the same role. Can it delete prod/report.csv?',
+          code: `"Statement": [
+  { "Effect": "Allow", "Action": "s3:*",
+    "Resource": "arn:aws:s3:::acme-data/*" },
+  { "Effect": "Deny", "Action": "s3:DeleteObject",
+    "Resource": "arn:aws:s3:::acme-data/prod/*" }
+]`,
+          options: [
+            'Yes, s3:* includes DeleteObject',
+            'Yes, the Allow was listed first',
+            'No, an explicit Deny always wins over an Allow',
+            'No, s3:* does not cover object actions'
+          ],
+          answer: 2,
+          explain: 'Explicit Deny beats any Allow. The role can still delete objects outside prod/.'
+        },
+        {
+          q: 'Read the policy. Listing the bucket returns AccessDenied. Why?',
+          code: `{
+  "Version": "2012-10-17",
+  "Statement": [{
+    "Effect": "Allow",
+    "Action": ["s3:ListBucket", "s3:GetObject"],
+    "Resource": "arn:aws:s3:::acme-reports/*"
+  }]
+}`,
+          options: [
+            'ListBucket applies to the bucket ARN, not to objects under /*',
+            'The Version date is wrong',
+            'GetObject and ListBucket cannot be in the same statement',
+            'S3 policies must use Effect: Permit'
+          ],
+          answer: 0,
+          explain: 'Add arn:aws:s3:::acme-reports as a resource for ListBucket. Object actions use bucket/*, bucket actions use the bare bucket ARN.'
+        },
+        {
+          q: 'What does assuming a role through STS give the caller?',
+          options: [
+            'A permanent access key for the role',
+            'Temporary credentials that expire, limited to the role’s permissions',
+            'The root user’s permissions for one hour',
+            'A copy of the role in the caller’s own account'
+          ],
+          answer: 1,
+          explain: 'STS issues short-lived credentials scoped by the role’s permissions policy. Nothing long-lived exists to leak.'
+        },
+        {
+          q: 'Read the workflow. The credentials step fails to get a token. What is missing?',
+          code: `on:
+  push:
+    branches: [main]
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: arn:aws:iam::123456789012:role/deploy-api
+          aws-region: us-east-1`,
+          options: [
+            'An AWS_SECRET_ACCESS_KEY secret',
+            'A self-hosted runner inside AWS',
+            'actions/checkout before the credentials step',
+            'permissions: id-token: write, so the job can request an OIDC token'
+          ],
+          answer: 3,
+          explain: 'Without id-token: write the job cannot get a GitHub OIDC token, so there is nothing to exchange for AWS credentials.'
+        },
+        {
+          q: 'A deploy role has exactly the right permissions policy, but the CI job gets AccessDenied when trying to assume it. What should you check first?',
+          options: [
+            'The S3 bucket policy',
+            'Whether the role has an explicit Deny on s3:*',
+            'The role’s trust policy: does it allow this caller to assume it?',
+            'The instance type of the runner'
+          ],
+          answer: 2,
+          explain: 'The trust policy controls who may assume a role. The permissions policy only matters once the role is assumed.'
         }
       ]
     },

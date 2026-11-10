@@ -75,8 +75,71 @@ export interface AppState {
   achievements: Record<string, string>
   notes: Record<string, string>
   settings: Settings
+  /** Skill-tree nodes (unit/module ids) mastered, with the date earned. Kept once earned. */
+  mastered?: Record<string, string>
   /** Level-up waiting to be celebrated once the user leaves an activity. */
   pendingLevelUp?: { from: number; to: number } | null
+  /** Design Lab: the user's canvas and results per problem id. */
+  designs?: Record<string, DesignRecord>
+}
+
+// ---------- Design Lab ----------
+
+export type ShapeKind =
+  | 'client'
+  | 'mobile'
+  | 'dns'
+  | 'cdn'
+  | 'lb'
+  | 'gateway'
+  | 'server'
+  | 'service'
+  | 'worker'
+  | 'cache'
+  | 'sql'
+  | 'nosql'
+  | 'storage'
+  | 'search'
+  | 'queue'
+  | 'rect'
+  | 'text'
+
+export interface DiagramNode {
+  id: string
+  kind: ShapeKind
+  /** top-left of the shape, in canvas units */
+  x: number
+  y: number
+  w: number
+  h: number
+  label: string
+  /** how many copies run (drawn stacked, e.g. "App Server ×3") */
+  count?: number
+}
+
+export interface DiagramEdge {
+  id: string
+  from: string
+  to: string
+  label?: string
+  /** arrowheads at both ends */
+  both?: boolean
+  /** dashed = async / background */
+  dashed?: boolean
+}
+
+export interface Diagram {
+  nodes: DiagramNode[]
+  edges: DiagramEdge[]
+}
+
+export interface DesignRecord {
+  diagram: Diagram
+  /** date first solved (all checks passed) */
+  solved?: string
+  runs: number
+  /** most checks passed in one run */
+  best: number
 }
 
 // ---------- Content ----------

@@ -1,18 +1,20 @@
 import { create } from 'zustand'
-import type { AppState, BridgeApi, Settings } from '../../shared/types'
+import type { AppState, BridgeApi, Diagram, Settings } from '../../shared/types'
 import { dateStr } from '../../shared/dates'
 import { defaultState, hydrate } from '../../shared/defaults'
+import { DIFFICULTY_XP, PROBLEM_BY_ID } from './content/design-problems'
 import { TOOLS } from './content/tools'
 import { ACHIEVEMENTS } from './lib/achievements'
 import { levelInfo } from './lib/levels'
 import { LESSON_BY_ID, moduleCode, moduleUnlocked, unitComplete } from './lib/progress'
 import { TOOL_TRACK } from './content/tools-track'
+import { earnsMastery, TREE_NODES } from './lib/skilltree'
 import { allQuestsDone, applyQuestEvent, generateQuests, QUEST_ICON, questLabel, type QuestEvent } from './lib/quests'
 import { answerCard, introduceCard } from './lib/srs'
 import { markFrozen, MAX_FREEZES, reconcileStreak, registerGoal } from './lib/streak'
 
-export type View = 'home' | 'path' | 'lesson' | 'review' | 'arena' | 'daily' | 'toolbox' | 'trophies' | 'settings'
-const VIEWS: View[] = ['home', 'path', 'lesson', 'review', 'arena', 'daily', 'toolbox', 'trophies', 'settings']
+export type View = 'home' | 'path' | 'lesson' | 'review' | 'arena' | 'daily' | 'lab' | 'toolbox' | 'trophies' | 'settings'
+const VIEWS: View[] = ['home', 'path', 'lesson', 'review', 'arena', 'daily', 'lab', 'toolbox', 'trophies', 'settings']
 
 export type Tone = 'good' | 'gold' | 'fire' | 'ice' | 'bad'
 export interface Toast {
@@ -163,6 +165,10 @@ interface Store {
   finishArenaRound(correct: number, total: number): boolean
   answerDaily(scenarioId: string, correct: boolean): void
   viewTool(id: string): void
+  /** Design Lab: keep the user's canvas (no XP, no toasts) */
+  saveDesign(id: string, diagram: Diagram): void
+  /** Design Lab: record a check run; returns XP earned (first full solve only) */
+  submitDesign(id: string, passed: number, total: number): number
   claimChest(): void
   dismissLevelUp(): void
   celebrate(): void
@@ -187,6 +193,13 @@ export const useStore = create<Store>((set, get) => {
     if (after.level > before.level) {
       // Celebrated later by <LevelUpModal>, once the user is out of the activity.
       d.pendingLevelUp = { from: d.pendingLevelUp?.from ?? before.level, to: after.level }
+    }
+    // skill tree: mastery is saved the first time it's earned and kept from then on
+    for (const n of TREE_NODES) {
+      if (!d.mastered?.[n.id] && earnsMastery(d, n.unit)) {
+        ;(d.mastered ??= {})[n.id] = today()
+        fx.toasts.push({ icon: 'star', title: `Mastered: ${n.unit.title}`, body: 'Gold on your skill tree. It stays for good.', tone: 'gold' })
+      }
     }
     for (const a of ACHIEVEMENTS) {
       if (!d.achievements[a.id] && a.check(d)) {
@@ -382,6 +395,34 @@ export const useStore = create<Store>((set, get) => {
         }
         questEvent(d, fx, 'tool_view')
       })
+    },
+
+    saveDesign(id, diagram) {
+      const s = get().s
+      const rec = s.designs?.[id] ?? { diagram, runs: 0, best: 0 }
+      const next = { ...s, designs: { ...s.designs, [id]: { ...rec, diagram } } }
+      set({ s: next })
+      scheduleSave(next)
+    },
+
+    submitDesign(id, passed, total) {
+      let earned = 0
+      run((d, fx) => {
+        const p = PROBLEM_BY_ID[id]
+        if (!p) return
+        const designs = (d.designs ??= {})
+        const rec = (designs[id] ??= { diagram: { nodes: [], edges: [] }, runs: 0, best: 0 })
+        rec.runs++
+        rec.best = Math.max(rec.best, passed)
+        if (passed === total && !rec.solved) {
+          rec.solved = today()
+          earned = DIFFICULTY_XP[p.difficulty]
+          gainXP(d, fx, earned)
+          fx.confetti = true
+          fx.toasts.push({ icon: 'pen-tool', title: `Solved: ${p.title}`, body: `+${earned} XP. The reference design is unlocked.`, tone: 'gold' })
+        }
+      })
+      return earned
     },
 
     claimChest() {

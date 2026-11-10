@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import type { Unit } from '../../../shared/types'
 import { Icon } from '../components/Icon'
+import { OverallStrip } from '../components/OverallProgress'
 import { CURRICULUM } from '../content/curriculum'
 import { TOOLS } from '../content/tools'
 import { TOOL_TRACK } from '../content/tools-track'
@@ -21,6 +22,7 @@ import {
   type Track
 } from '../lib/progress'
 import { useStore } from '../store'
+import { SkillTree } from './SkillTree'
 
 const TYPE_ICON = { lesson: 'book-open', byte: 'mic', lab: 'flask' } as const
 const TYPE_LABEL = { lesson: 'Lesson', byte: 'Interview byte', lab: 'Hands-on lab' } as const
@@ -114,9 +116,17 @@ function UnitSection({ unit, index, track, current }: { unit: Unit; index: numbe
   )
 }
 
+/** Remembered for the session so leaving and coming back keeps your choice. Tree is the default. */
+let lastMode: 'tree' | 'list' = 'tree'
+
 export function Path(): JSX.Element {
   const s = useStore((st) => st.s)
   const params = useStore((st) => st.params)
+  const [mode, setModeState] = useState<'tree' | 'list'>(lastMode)
+  const setMode = (m: 'tree' | 'list'): void => {
+    lastMode = m
+    setModeState(m)
+  }
   const [track, setTrack] = useState<Track>(params.track === 'tools' ? 'tools' : 'concepts')
   const units = track === 'tools' ? TOOL_TRACK : CURRICULUM
   const current = track === 'tools' ? nextToolLesson(s) : nextLesson(s)
@@ -126,48 +136,68 @@ export function Path(): JSX.Element {
 
   // deep link: scroll to a unit/module (after the app's own scroll-to-top)
   useEffect(() => {
-    if (!params.unit) return
+    if (!params.unit || mode !== 'list') return
     const id = requestAnimationFrame(() => document.getElementById(`unit-${params.unit}`)?.scrollIntoView({ block: 'start' }))
     return () => cancelAnimationFrame(id)
-  }, [params.unit, track])
+  }, [params.unit, track, mode])
 
   return (
     <div className="path">
-      <div className="page-head">
-        <h1>
-          The <em>path</em>
-        </h1>
-        <p className="muted">
-          {track === 'concepts'
-            ? 'From “what is a server” to sharding, in the order of the video. Each unit links to the real tools it covers in the Toolbox.'
-            : 'Hands-on with the real tools: configs, commands, gotchas, and how to talk about them in an interview. Each module opens when you finish the concept unit it builds on.'}
-        </p>
-      </div>
-
-      <div className="tabs" role="tablist">
-        <button role="tab" aria-selected={track === 'concepts'} className={`tab ${track === 'concepts' ? 'on' : ''}`} onClick={() => setTrack('concepts')}>
-          <Icon name="lightbulb" size={15} /> Concepts{' '}
-          <span className="hint-text">
-            {conceptDone}/{LESSONS.length}
-          </span>
-        </button>
-        <button role="tab" aria-selected={track === 'tools'} className={`tab ${track === 'tools' ? 'on' : ''}`} onClick={() => setTrack('tools')}>
-          <Icon name="wrench" size={15} /> Tools{' '}
-          <span className="hint-text">
-            {toolDone}/{TOOL_LESSONS.length}
-          </span>
-        </button>
-      </div>
-
-      {track === 'tools' && openModules === 0 && (
-        <div className="callout">
-          <b>The Tools track opens as you learn the concepts.</b> Finish Unit 01 · Foundations to unlock the first module, Cloud fundamentals.
+      <div className="page-head path-head">
+        <div>
+          <h1>
+            The <em>path</em>
+          </h1>
+          <p className="muted">
+            {mode === 'tree'
+              ? 'Your skill tree. Follow the trunk of concepts down, branch out into the real tools, and turn nodes gold by mastering them in Review.'
+              : track === 'concepts'
+                ? 'From “what is a server” to sharding, in the order of the video. Each unit links to the real tools it covers in the Toolbox.'
+                : 'Hands-on with the real tools: configs, commands, gotchas, and how to talk about them in an interview. Each module opens when you finish the concept unit it builds on.'}
+          </p>
         </div>
-      )}
+        <div className="seg" role="radiogroup" aria-label="Path view">
+          <button role="radio" aria-checked={mode === 'tree'} className={mode === 'tree' ? 'on' : ''} onClick={() => setMode('tree')}>
+            <Icon name="waypoints" size={15} /> Tree
+          </button>
+          <button role="radio" aria-checked={mode === 'list'} className={mode === 'list' ? 'on' : ''} onClick={() => setMode('list')}>
+            <Icon name="list-checks" size={15} /> List
+          </button>
+        </div>
+      </div>
 
-      {units.map((unit, ui) => (
-        <UnitSection key={unit.id} unit={unit} index={ui} track={track} current={current} />
-      ))}
+      <OverallStrip />
+
+      {mode === 'tree' && <SkillTree focus={params.unit} />}
+
+      {mode === 'list' && (
+        <>
+          <div className="tabs" role="tablist">
+            <button role="tab" aria-selected={track === 'concepts'} className={`tab ${track === 'concepts' ? 'on' : ''}`} onClick={() => setTrack('concepts')}>
+              <Icon name="lightbulb" size={15} /> Concepts{' '}
+              <span className="hint-text">
+                {conceptDone}/{LESSONS.length}
+              </span>
+            </button>
+            <button role="tab" aria-selected={track === 'tools'} className={`tab ${track === 'tools' ? 'on' : ''}`} onClick={() => setTrack('tools')}>
+              <Icon name="wrench" size={15} /> Tools{' '}
+              <span className="hint-text">
+                {toolDone}/{TOOL_LESSONS.length}
+              </span>
+            </button>
+          </div>
+
+          {track === 'tools' && openModules === 0 && (
+            <div className="callout">
+              <b>The Tools track opens as you learn the concepts.</b> Finish Unit 01 · Foundations to unlock the first module, Cloud fundamentals.
+            </div>
+          )}
+
+          {units.map((unit, ui) => (
+            <UnitSection key={unit.id} unit={unit} index={ui} track={track} current={current} />
+          ))}
+        </>
+      )}
     </div>
   )
 }
