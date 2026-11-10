@@ -11,7 +11,7 @@ import {
 } from 'electron'
 import { join, resolve } from 'path'
 import { readFileSync, renameSync, writeFileSync } from 'fs'
-import type { AppState, StartupMode } from '../shared/types'
+import type { AppState, StartupMode, WindowAction } from '../shared/types'
 import { makeIcon } from './icon'
 import { decideReminder, reminderText, summarize, type ReminderSent } from './reminders'
 
@@ -66,16 +66,23 @@ function createWindow(): void {
     minHeight: 660,
     show: false,
     title: 'Blueprint',
-    backgroundColor: '#0b1322',
+    backgroundColor: '#f7f5ef',
     icon: makeIcon(256),
+    frame: false, // custom title bar drawn by the renderer
     autoHideMenuBar: true,
     webPreferences: {
       preload: join(__dirname, '../preload/index.js'),
       contextIsolation: true,
       nodeIntegration: false,
-      sandbox: true
+      sandbox: true,
+      autoplayPolicy: 'no-user-gesture-required' // background music starts on its own
     }
   })
+
+  win.on('maximize', () => win?.webContents.send('win:maximized', true))
+  win.on('unmaximize', () => win?.webContents.send('win:maximized', false))
+  win.on('show', () => win?.webContents.send('win:visible', true))
+  win.on('hide', () => win?.webContents.send('win:visible', false))
 
   win.once('ready-to-show', () => {
     if (!START_HIDDEN) win?.show()
@@ -227,6 +234,16 @@ function registerIpc(): void {
     const { title, body } = reminderText('reminder', sum)
     notify(title, body)
   })
+  ipcMain.on('win:control', (_e, action: WindowAction) => {
+    if (!win) return
+    if (action === 'minimize') win.minimize()
+    else if (action === 'maximize') {
+      if (win.isMaximized()) win.unmaximize()
+      else win.maximize()
+    } else if (action === 'close') win.close() // respects close-to-tray
+  })
+  ipcMain.handle('win:isMaximized', () => win?.isMaximized() ?? false)
+  ipcMain.handle('win:isVisible', () => win?.isVisible() ?? false)
   ipcMain.handle('app:info', () => ({
     version: app.getVersion(),
     isPackaged: app.isPackaged,

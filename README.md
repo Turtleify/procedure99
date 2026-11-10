@@ -37,6 +37,10 @@ Use the installed build (`npm run dist`) for real daily use. It registers a prop
   - **Off**.
 - Reminders fire at your chosen time, plus a late-evening "streak in danger" alert.
 
+### Sound and music
+- Background music plays on shuffle. Use the mute button and volume slider in the top bar. The default volume is 30% of the tracks' own level, and your setting is saved. Music pauses while Blueprint is hidden in the tray.
+- Sound effects for clicks, hovers, right and wrong answers, and level-ups. Turn them on or off in **Settings → Window & sound**.
+
 ## Where data lives
 Progress is saved to `%APPDATA%/Blueprint/progress.json`.
 
@@ -53,3 +57,26 @@ Content is plain TypeScript in `src/renderer/src/content/`:
 - `tools.ts`: tool cards and comparisons.
 
 `npm test` validates the content: answer indices in range, exactly one correct option per scenario, and valid unit references.
+
+## Music credits
+
+The background music is from [Free To Use](https://freetouse.com/music). Files are in `blueprint-background-music/`.
+
+| Track | Artist | Source |
+|---|---|---|
+| Moving Mountains | Aeris | [freetouse.com/music](https://freetouse.com/music) |
+| Pure Dream | Aeris | [freetouse.com/music](https://freetouse.com/music) |
+| Yellow Flower | Aeris | [freetouse.com/music](https://freetouse.com/music) |
+| Fresh Start | Chill Pulse | [freetouse.com/music](https://freetouse.com/music) |
+| A Sweet Story | Guillermo Guareschi | [freetouse.com/music](https://freetouse.com/music) |
+| Loving | Pufino | [freetouse.com/music](https://freetouse.com/music) |
+
+Music track: Moving Mountains by Aeris<br>
+Music track: Pure Dream by Aeris<br>
+Music track: Yellow Flower by Aeris<br>
+Music track: Fresh Start by Chill Pulse<br>
+Music track: A Sweet Story by Guillermo Guareschi<br>
+Music track: Loving by Pufino<br>
+Source: https://freetouse.com/music
+
+To add a track, put the `.mp3` in `blueprint-background-music/`, add it to `TRACKS` in `src/renderer/src/lib/music.ts`, and credit it here.

@@ -1,11 +1,14 @@
-import { useEffect } from 'react'
+import { useEffect, useState, type CSSProperties } from 'react'
 import { dateStr } from '../../shared/dates'
 import { Bar } from './components/bits'
 import { Icon } from './components/Icon'
+import { LevelUpModal } from './components/LevelUp'
 import { Confetti, Toasts, XpPops } from './components/Overlays'
 import { levelInfo } from './lib/levels'
+import { initMusic, nowPlaying, onTrackChange, setMusicMuted, setMusicVolume, setWindowVisible, type Track } from './lib/music'
+import { installUiSounds, setSoundPrefs } from './lib/sound'
 import { dueIds } from './lib/srs'
-import { useStore, type View } from './store'
+import { api, useStore, type View } from './store'
 import { Home } from './views/Home'
 import { LessonPlayer } from './views/LessonPlayer'
 import { Path } from './views/Path'
@@ -28,11 +31,11 @@ const NAV: { view: View; icon: string; label: string }[] = [
 function Logo(): JSX.Element {
   return (
     <svg width="34" height="34" viewBox="0 0 34 34" fill="none" aria-hidden>
-      <rect x="0.5" y="0.5" width="33" height="33" rx="3" stroke="#2a3f5e" />
-      <path d="M17 7 L26 12 L26 22 L17 27 L8 22 L8 12 Z" stroke="#ece6d8" strokeWidth="1.4" strokeLinejoin="round" />
-      <path d="M8 12 L17 17 L26 12 M17 17 V27" stroke="#ece6d8" strokeWidth="1.4" strokeLinejoin="round" />
-      <path d="M17 17 L26 12 L26 22 L17 27 Z" fill="#6ec3db" fillOpacity="0.85" />
-      <path d="M3 6 V3 H6 M28 3 H31 V6 M31 28 V31 H28 M6 31 H3 V28" stroke="#6ec3db" strokeWidth="1" />
+      <rect x="0.5" y="0.5" width="33" height="33" rx="3" stroke="#cdc6b8" />
+      <path d="M17 7 L26 12 L26 22 L17 27 L8 22 L8 12 Z" stroke="#1f2328" strokeWidth="1.4" strokeLinejoin="round" />
+      <path d="M8 12 L17 17 L26 12 M17 17 V27" stroke="#1f2328" strokeWidth="1.4" strokeLinejoin="round" />
+      <path d="M17 17 L26 12 L26 22 L17 27 Z" fill="#1a6f8c" fillOpacity="0.85" />
+      <path d="M3 6 V3 H6 M28 3 H31 V6 M31 28 V31 H28 M6 31 H3 V28" stroke="#1a6f8c" strokeWidth="1" />
     </svg>
   )
 }
@@ -67,6 +70,88 @@ function Sidebar(): JSX.Element {
         One drawing a day
       </div>
     </nav>
+  )
+}
+
+/** Background-music mute button + volume slider. */
+function MusicControl(): JSX.Element {
+  const volume = useStore((st) => st.s.settings.musicVolume)
+  const muted = useStore((st) => st.s.settings.musicMuted)
+  const update = useStore((st) => st.updateSettings)
+  const [track, setTrack] = useState<Track | null>(nowPlaying())
+  useEffect(() => onTrackChange(setTrack), [])
+
+  const silent = muted || volume === 0
+  const pct = Math.round(volume * 100)
+  const icon = silent ? 'volume-x' : volume < 0.5 ? 'volume-1' : 'volume-2'
+  const playing = track ? `${track.title} by ${track.artist}` : 'Background music'
+
+  return (
+    <div className="music" title={silent ? 'Music muted' : `Now playing: ${playing}`}>
+      <button
+        className="music-btn"
+        onClick={() => {
+          // unmuting from 0 would still be silent, so restore the default level
+          if (silent && volume === 0) update({ musicMuted: false, musicVolume: 0.3 })
+          else update({ musicMuted: !muted })
+        }}
+        aria-label={silent ? 'Unmute music' : 'Mute music'}
+        aria-pressed={silent}
+      >
+        <Icon name={icon} size={18} />
+      </button>
+      <input
+        type="range"
+        className="music-slider"
+        min={0}
+        max={100}
+        step={1}
+        value={silent ? 0 : pct}
+        style={{ '--pct': `${silent ? 0 : pct}%` } as CSSProperties}
+        onChange={(e) => {
+          const v = Number(e.target.value) / 100
+          update({ musicVolume: v, musicMuted: false })
+        }}
+        aria-label="Music volume"
+        aria-valuetext={silent ? 'Muted' : `${pct}%`}
+      />
+    </div>
+  )
+}
+
+/** Frameless-window buttons, Windows order: minimize, maximize/restore, close. */
+function WindowControls(): JSX.Element | null {
+  const [max, setMax] = useState(false)
+  useEffect(() => {
+    void api.isMaximized().then(setMax)
+    return api.onMaximizedChange(setMax)
+  }, [])
+  if (!window.api) return null // plain browser preview: no window to control
+  return (
+    <div className="win-controls">
+      <button className="win-btn" onClick={() => api.windowControl('minimize')} aria-label="Minimize" title="Minimize">
+        <svg width="10" height="10" viewBox="0 0 10 10" aria-hidden>
+          <path d="M0 5.5 H10" stroke="currentColor" strokeWidth="1" />
+        </svg>
+      </button>
+      <button className="win-btn" onClick={() => api.windowControl('maximize')} aria-label={max ? 'Restore' : 'Maximize'} title={max ? 'Restore' : 'Maximize'}>
+        {max ? (
+          <svg width="10" height="10" viewBox="0 0 10 10" fill="none" aria-hidden>
+            <rect x="0.5" y="2.5" width="7" height="7" stroke="currentColor" />
+            <path d="M2.5 2.5 V0.5 H9.5 V7.5 H7.5" stroke="currentColor" />
+          </svg>
+        ) : (
+          <svg width="10" height="10" viewBox="0 0 10 10" fill="none" aria-hidden>
+            <rect x="0.5" y="0.5" width="9" height="9" stroke="currentColor" />
+          </svg>
+        )}
+      </button>
+      <button className="win-btn close" onClick={() => api.windowControl('close')} aria-label="Close" title="Close">
+        <svg width="10" height="10" viewBox="0 0 10 10" aria-hidden>
+          <path d="M0.5 0.5 L9.5 9.5 M9.5 0.5 L0.5 9.5" stroke="currentColor" strokeWidth="1.1" />
+        </svg>
+      </button>
+    </div>
   )
 }
 
@@ -108,7 +193,8 @@ function TopBar(): JSX.Element {
         </div>
       </div>
       <div className="spacer" />
-      <div className="level">
+      <MusicControl />
+      <div className="level" title={`${lvl.title} · ${lvl.into} / ${lvl.need} XP to level ${lvl.level + 1}`}>
         <div>
           <div className="readout-k">Level</div>
           <div className="level-num">{lvl.level}</div>
@@ -122,6 +208,7 @@ function TopBar(): JSX.Element {
         </div>
         <XpPops />
       </div>
+      <WindowControls />
     </header>
   )
 }
@@ -166,6 +253,28 @@ export default function App(): JSX.Element {
     }
   }, [])
 
+  const sounds = useStore((st) => st.s.settings.sounds)
+  const hoverSounds = useStore((st) => st.s.settings.hoverSounds)
+  useEffect(() => setSoundPrefs({ enabled: sounds, hover: hoverSounds }), [sounds, hoverSounds])
+  useEffect(() => installUiSounds(), [])
+
+  // background music: start once settings are loaded, follow the slider/mute
+  const musicVolume = useStore((st) => st.s.settings.musicVolume)
+  const musicMuted = useStore((st) => st.s.settings.musicMuted)
+  useEffect(() => {
+    if (!ready) return
+    let off = (): void => undefined
+    void api.isWindowVisible().then((visible) => {
+      setWindowVisible(visible) // launched hidden in the tray? stay quiet
+      const { settings } = useStore.getState().s
+      initMusic({ volume: settings.musicVolume, muted: settings.musicMuted })
+      off = api.onWindowVisibility(setWindowVisible)
+    })
+    return () => off()
+  }, [ready])
+  useEffect(() => setMusicVolume(musicVolume), [musicVolume])
+  useEffect(() => setMusicMuted(musicMuted), [musicMuted])
+
   useEffect(() => {
     document.querySelector('.content')?.scrollTo(0, 0)
   }, [view, params])
@@ -184,6 +293,7 @@ export default function App(): JSX.Element {
         </main>
       </div>
       <Toasts />
+      <LevelUpModal />
       <Confetti />
     </div>
   )

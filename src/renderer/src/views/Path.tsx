@@ -18,13 +18,13 @@ export function Path(): JSX.Element {
         <h1>
           The <em>path</em>
         </h1>
-        <p className="muted">From “what is a server” to sharding, in the order of the video. Finishing a unit adds its tools to your Toolbox.</p>
+        <p className="muted">From “what is a server” to sharding, in the order of the video. Each unit links to the real tools it covers in the Toolbox.</p>
       </div>
       {CURRICULUM.map((unit, ui) => {
         const done = unit.lessons.filter((l) => isDone(s, l.id)).length
         const complete = unitComplete(s, unit)
         const locked = !isUnlocked(s, unit.lessons[0].id)
-        const tools = TOOLS.filter((t) => t.unit === unit.id)
+        const tools = TOOLS.filter((t) => t.unit === unit.id || t.alsoIn?.includes(unit.id))
         return (
           <section key={unit.id} className={`unit ${locked ? 'locked' : ''} ${complete ? 'complete' : ''}`}>
             <div className="unit-num">
@@ -75,14 +75,17 @@ export function Path(): JSX.Element {
               {tools.length > 0 && (
                 <div className="unit-tools">
                   <span className="hint-text" style={{ marginRight: 6 }}>
-                    {complete ? 'Unlocked' : 'Unlocks'}
+                    In the Toolbox
                   </span>
-                  {tools.map((t) => (
-                    <span key={t.id} className={`tag ${complete ? 'cyan' : ''}`}>
-                      <Icon name={complete ? t.icon : 'lock'} size={12} />
+                  {tools.slice(0, 5).map((t) => (
+                    <span key={t.id} className="tag">
+                      <Icon name={t.icon} size={12} />
                       {t.name}
                     </span>
                   ))}
+                  <button className="tag link-tag" onClick={() => go('toolbox', { unit: unit.id })}>
+                    {tools.length > 5 ? `+${tools.length - 5} more` : 'Open'} <Icon name="arrow-right" size={11} />
+                  </button>
                 </div>
               )}
             </div>

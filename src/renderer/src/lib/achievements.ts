@@ -1,7 +1,7 @@
 import type { AppState } from '../../../shared/types'
 import { TOOLS } from '../content/tools'
 import { levelInfo } from './levels'
-import { completedUnitIds, LAB_COUNT, unlockedTools } from './progress'
+import { completedUnitIds, LAB_COUNT } from './progress'
 
 export interface Achievement {
   id: string
@@ -12,6 +12,7 @@ export interface Achievement {
 }
 
 const unitDone = (id: string) => (s: AppState) => completedUnitIds(s).includes(id)
+const toolsRead = (s: AppState): number => TOOLS.filter((t) => s.toolsViewed[t.id]).length
 
 export const ACHIEVEMENTS: Achievement[] = [
   { id: 'first_lesson', icon: 'graduation-cap', title: 'Hello, World', desc: 'Complete your first lesson', check: (s) => Object.keys(s.completed).length >= 1 },
@@ -32,7 +33,8 @@ export const ACHIEVEMENTS: Achievement[] = [
   { id: 'review50', icon: 'brain', title: 'Long-Term Memory', desc: 'Answer 50 review cards', check: (s) => s.stats.reviews >= 50 },
   { id: 'arena10', icon: 'swords', title: 'Tradeoff Thinker', desc: 'Win 10 Tradeoff Arena rounds', check: (s) => s.arena.wins >= 10 },
   { id: 'daily7', icon: 'siren', title: 'On Call', desc: 'Solve 7 Daily Incidents', check: (s) => s.stats.dailyWins >= 7 },
-  { id: 'tools_all', icon: 'wrench', title: 'Collector', desc: 'Unlock every tool card', check: (s) => unlockedTools(s).length >= TOOLS.length },
+  { id: 'tools_all', icon: 'wrench', title: 'Collector', desc: 'Read 25 Toolbox entries', check: (s) => toolsRead(s) >= 25 },
+  { id: 'tools_100', icon: 'book-open', title: 'Walking Encyclopedia', desc: 'Read 100 Toolbox entries', check: (s) => toolsRead(s) >= 100 },
   { id: 'level5', icon: 'star', title: 'Rising Star', desc: 'Reach level 5', check: (s) => levelInfo(s.xp).level >= 5 },
   { id: 'level10', icon: 'award', title: 'Staff Material', desc: 'Reach level 10', check: (s) => levelInfo(s.xp).level >= 10 },
   { id: 'early', icon: 'sunrise', title: 'Early Bird', desc: 'Study before 8am', check: (s) => s.stats.early },

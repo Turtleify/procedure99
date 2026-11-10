@@ -64,7 +64,7 @@ function Results({ lesson, startXp, mark, tone, title, result, children }: { les
       {result?.unitJustDone && (
         <div className="callout gold">
           <b>Unit complete: {lesson.unit.title}.</b>
-          {result.newTools.length > 0 && <> New tools in your Toolbox: {result.newTools.join(', ')}.</>}
+          {result.unitTools > 0 && <> The Toolbox has {result.unitTools} real-world tools for it.</>}
         </div>
       )}
       {!result?.first && <p className="muted small">Replay: reduced XP, but it still counts toward your daily goal and quests.</p>}
@@ -74,9 +74,9 @@ function Results({ lesson, startXp, mark, tone, title, result, children }: { les
             Next: {next.title} <Icon name="arrow-right" size={16} />
           </button>
         )}
-        {result?.newTools.length ? (
-          <button className="btn" onClick={() => go('toolbox')}>
-            <Icon name="wrench" size={15} /> Open Toolbox
+        {result?.unitTools ? (
+          <button className="btn" onClick={() => go('toolbox', { unit: lesson.unit.id })}>
+            <Icon name="wrench" size={15} /> See its tools
           </button>
         ) : null}
         <button className="btn" onClick={() => go('home')}>

@@ -1,4 +1,5 @@
 import { useEffect, useState, type ReactNode } from 'react'
+import { sfx } from '../lib/sound'
 import { shuffle } from '../lib/rng'
 import { Icon } from './Icon'
 
@@ -26,6 +27,8 @@ export function Mcq({ prompt, options, explain, onAnswer, onNext, nextLabel = 'N
   const pick = (i: number): void => {
     if (picked !== null) return
     setPicked(i)
+    if (options[i].correct) sfx.correct()
+    else sfx.wrong()
     onAnswer(options[i].correct)
   }
 

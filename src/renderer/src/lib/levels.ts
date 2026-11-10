@@ -9,6 +9,13 @@ const TITLES: [number, string][] = [
   [15, 'Distinguished Architect']
 ]
 
+/** Rank title for a given level. */
+export function titleFor(level: number): string {
+  let title = TITLES[0][1]
+  for (const [min, t] of TITLES) if (level >= min) title = t
+  return title
+}
+
 /** XP needed to go from level L to L+1. */
 export const xpForNext = (level: number): number => 100 + 50 * (level - 1)
 
@@ -28,7 +35,5 @@ export function levelInfo(totalXp: number): LevelInfo {
     rest -= xpForNext(level)
     level++
   }
-  let title = TITLES[0][1]
-  for (const [min, t] of TITLES) if (level >= min) title = t
-  return { level, title, into: rest, need: xpForNext(level) }
+  return { level, title: titleFor(level), into: rest, need: xpForNext(level) }
 }

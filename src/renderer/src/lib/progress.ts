@@ -1,7 +1,7 @@
 import type { AppState, Lesson, Question, Scenario, Unit } from '../../../shared/types'
 import { CURRICULUM } from '../content/curriculum'
 import { SCENARIOS } from '../content/scenarios'
-import { COMPARISONS, TOOLS } from '../content/tools'
+import { COMPARISONS } from '../content/tools'
 import { hashStr } from './rng'
 
 export type FlatLesson = Lesson & { unitIndex: number; unit: Unit; index: number }
@@ -46,11 +46,6 @@ export function completedUnitIds(s: AppState): string[] {
 /** Index of the unit you're currently working through (last unit if everything is done). */
 export function currentUnitIndex(s: AppState): number {
   return nextLesson(s)?.unitIndex ?? CURRICULUM.length - 1
-}
-
-export function unlockedTools(s: AppState): typeof TOOLS {
-  const done = new Set(completedUnitIds(s))
-  return TOOLS.filter((t) => done.has(t.unit))
 }
 
 export function unlockedComparisons(s: AppState): typeof COMPARISONS {

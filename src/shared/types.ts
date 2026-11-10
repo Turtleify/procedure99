@@ -10,6 +10,13 @@ export interface Settings {
   startupMode: StartupMode
   dangerAlert: boolean
   closeToTray: boolean
+  /** UI sound effects (clicks, right/wrong answers, level-ups) */
+  sounds: boolean
+  /** soft tick when hovering buttons (only if sounds is on) */
+  hoverSounds: boolean
+  /** background music level, 0–1 of the files' own loudness */
+  musicVolume: number
+  musicMuted: boolean
 }
 
 export interface DayRecord {
@@ -68,6 +75,8 @@ export interface AppState {
   achievements: Record<string, string>
   notes: Record<string, string>
   settings: Settings
+  /** Level-up waiting to be celebrated once the user leaves an activity. */
+  pendingLevelUp?: { from: number; to: number } | null
 }
 
 // ---------- Content ----------
@@ -147,10 +156,16 @@ export interface Scenario {
 export interface Tool {
   id: string
   name: string
+  /** must match a name in content/toolbox/categories.ts (which sets the phase) */
   category: string
+  /** the unit this tool is most relevant to */
   unit: string
+  /** other units where it also comes up */
+  alsoIn?: string[]
   icon: string
   tagline: string
+  /** 2–4 plain-English sentences: what it is and how it fits into a system */
+  summary: string
   strengths: string[]
   weaknesses: string[]
   useWhen: string[]
@@ -182,4 +197,13 @@ export interface BridgeApi {
   testNotification(): Promise<void>
   getInfo(): Promise<AppInfo>
   onNavigate(cb: (view: string) => void): () => void
+  /** Custom title-bar buttons (the window is frameless). */
+  windowControl(action: WindowAction): void
+  isMaximized(): Promise<boolean>
+  onMaximizedChange(cb: (maximized: boolean) => void): () => void
+  /** Window shown vs hidden to the tray (background music pauses when hidden). */
+  isWindowVisible(): Promise<boolean>
+  onWindowVisibility(cb: (visible: boolean) => void): () => void
 }
+
+export type WindowAction = 'minimize' | 'maximize' | 'close'

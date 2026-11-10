@@ -63,7 +63,7 @@ describe('icons', () => {
       'snowflake', 'heart-crack', 'gift', 'flame', 'chevrons-up', 'swords'
     ]
     for (const k of keys) expect(hasIcon(k), k).toBe(true)
-  })
+  }, 30_000) // first import of the icon library is slow on a cold cache
 })
 
 describe('tools', () => {
@@ -74,5 +74,29 @@ describe('tools', () => {
       for (const r of c.rows) expect(r.length, c.id).toBe(c.columns.length)
     }
     expect(new Set(TOOLS.map((t) => t.id)).size).toBe(TOOLS.length)
+  })
+
+  it('are complete encyclopedia entries', async () => {
+    const { CATEGORY_BY_NAME } = await import('../src/renderer/src/content/toolbox/categories')
+    for (const t of TOOLS) {
+      expect(CATEGORY_BY_NAME[t.category], `${t.id}: category "${t.category}"`).toBeTruthy()
+      for (const u of t.alsoIn ?? []) expect(unitIds.has(u), `${t.id}: alsoIn ${u}`).toBe(true)
+      expect(t.summary.length, `${t.id}: summary`).toBeGreaterThan(60)
+      expect(t.tagline.length, `${t.id}: tagline`).toBeLessThanOrEqual(80)
+      expect(t.strengths.length, `${t.id}: strengths`).toBeGreaterThanOrEqual(2)
+      expect(t.weaknesses.length, `${t.id}: weaknesses`).toBeGreaterThanOrEqual(2)
+      expect(t.useWhen.length, `${t.id}: useWhen`).toBeGreaterThanOrEqual(1)
+      expect(t.avoidWhen.length, `${t.id}: avoidWhen`).toBeGreaterThanOrEqual(1)
+      expect(t.alternatives.length, `${t.id}: alternatives`).toBeGreaterThanOrEqual(1)
+    }
+    // names should be unique too, or search results get confusing
+    expect(new Set(TOOLS.map((t) => t.name.toLowerCase())).size).toBe(TOOLS.length)
+  })
+
+  it('every unit has tools in the Toolbox', () => {
+    for (const id of unitIds) {
+      const n = TOOLS.filter((t) => t.unit === id || t.alsoIn?.includes(id)).length
+      expect(n, id).toBeGreaterThanOrEqual(5)
+    }
   })
 })

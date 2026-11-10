@@ -53,7 +53,7 @@ export function XpPops(): JSX.Element {
 }
 
 // paper snips in the house palette — restrained, not a rainbow
-const COLORS = ['#ece6d8', '#6ec3db', '#e9b949', '#ff6b3d']
+const COLORS = ['#1f2328', '#7ab814', '#1a6f8c', '#d4a017']
 
 export function Confetti(): JSX.Element {
   const burst = useStore((s) => s.confetti)

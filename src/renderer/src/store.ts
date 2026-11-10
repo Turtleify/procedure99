@@ -5,7 +5,7 @@ import { defaultState, hydrate } from '../../shared/defaults'
 import { TOOLS } from './content/tools'
 import { ACHIEVEMENTS } from './lib/achievements'
 import { levelInfo } from './lib/levels'
-import { LESSON_BY_ID, unitComplete, unlockedTools } from './lib/progress'
+import { LESSON_BY_ID, unitComplete } from './lib/progress'
 import { allQuestsDone, applyQuestEvent, generateQuests, QUEST_ICON, questLabel, type QuestEvent } from './lib/quests'
 import { answerCard, introduceCard } from './lib/srs'
 import { markFrozen, MAX_FREEZES, reconcileStreak, registerGoal } from './lib/streak'
@@ -33,7 +33,8 @@ export interface CompleteResult {
   xp: number
   perfect: boolean
   unitJustDone: boolean
-  newTools: string[]
+  /** how many Toolbox entries relate to the unit just finished (0 unless unitJustDone) */
+  unitTools: number
 }
 
 // ---------- bridge (falls back to localStorage when run in a plain browser) ----------
@@ -57,7 +58,12 @@ const fallbackApi: BridgeApi = {
   setStartupMode: async () => undefined,
   testNotification: async () => undefined,
   getInfo: async () => ({ version: 'browser', isPackaged: false, openAtLogin: false }),
-  onNavigate: () => () => undefined
+  onNavigate: () => () => undefined,
+  windowControl: () => undefined,
+  isMaximized: async () => false,
+  onMaximizedChange: () => () => undefined,
+  isWindowVisible: async () => true,
+  onWindowVisibility: () => () => undefined
 }
 
 export const api: BridgeApi = window.api ?? fallbackApi
@@ -92,7 +98,7 @@ function ensureDay(d: AppState, fx: Fx): void {
     d.quests = generateQuests(t, {
       dailyGoal: d.settings.dailyGoal,
       srsSize: Object.keys(d.srs).length,
-      toolsUnlocked: unlockedTools(d).length
+      toolsUnlocked: TOOLS.length
     })
   }
 }
@@ -157,6 +163,8 @@ interface Store {
   answerDaily(scenarioId: string, correct: boolean): void
   viewTool(id: string): void
   claimChest(): void
+  dismissLevelUp(): void
+  celebrate(): void
   saveNote(id: string, text: string): void
   updateSettings(p: Partial<Settings>): void
   reset(): void
@@ -176,8 +184,8 @@ export const useStore = create<Store>((set, get) => {
     const before = levelInfo(prev.xp)
     const after = levelInfo(d.xp)
     if (after.level > before.level) {
-      fx.confetti = true
-      fx.toasts.push({ icon: 'chevrons-up', title: `Level ${after.level}!`, body: `You're now a ${after.title}.`, tone: 'gold' })
+      // Celebrated later by <LevelUpModal>, once the user is out of the activity.
+      d.pendingLevelUp = { from: d.pendingLevelUp?.from ?? before.level, to: after.level }
     }
     for (const a of ACHIEVEMENTS) {
       if (!d.achievements[a.id] && a.check(d)) {
@@ -223,6 +231,14 @@ export const useStore = create<Store>((set, get) => {
       set({ view, params })
     },
 
+    dismissLevelUp() {
+      run((d) => void (d.pendingLevelUp = null))
+    },
+
+    celebrate() {
+      set((st) => ({ confetti: st.confetti + 1 }))
+    },
+
     dismissToast(id) {
       set((st) => ({ toasts: st.toasts.filter((t) => t.id !== id) }))
     },
@@ -248,7 +264,7 @@ export const useStore = create<Store>((set, get) => {
     },
 
     completeLesson(id, r) {
-      let result: CompleteResult = { first: false, xp: 0, perfect: false, unitJustDone: false, newTools: [] }
+      let result: CompleteResult = { first: false, xp: 0, perfect: false, unitJustDone: false, unitTools: 0 }
       run((d, fx) => {
         const L = LESSON_BY_ID[id]
         if (!L) return
@@ -279,17 +295,17 @@ export const useStore = create<Store>((set, get) => {
         questEvent(d, fx, 'lesson')
 
         const unitJustDone = !unitWasDone && unitComplete(d, L.unit)
-        const newTools = unitJustDone ? TOOLS.filter((t) => t.unit === L.unit.id).map((t) => t.name) : []
+        const unitTools = unitJustDone ? TOOLS.filter((t) => t.unit === L.unit.id || t.alsoIn?.includes(L.unit.id)).length : 0
         if (unitJustDone) {
           fx.confetti = true
           fx.toasts.push({
             icon: L.unit.icon,
             title: `Unit complete: ${L.unit.title}`,
-            body: newTools.length ? `Unlocked: ${newTools.join(', ')}` : undefined,
+            body: unitTools ? `Explore its ${unitTools} real-world tools in the Toolbox.` : undefined,
             tone: 'gold'
           })
         }
-        result = { first, xp, perfect, unitJustDone, newTools }
+        result = { first, xp, perfect, unitJustDone, unitTools }
       })
       return result
     },

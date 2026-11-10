@@ -22,7 +22,11 @@ export function defaultState(): AppState {
       reminderTime: '19:00',
       startupMode: 'tray',
       dangerAlert: true,
-      closeToTray: true
+      closeToTray: true,
+      sounds: true,
+      hoverSounds: true,
+      musicVolume: 0.3,
+      musicMuted: false
     }
   }
 }

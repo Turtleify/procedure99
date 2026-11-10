@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import type { AppInfo, StartupMode } from '../../../shared/types'
 import { Label } from '../components/bits'
 import { Icon } from '../components/Icon'
+import { sfx } from '../lib/sound'
 import { api, useStore } from '../store'
 
 const MODES: { id: StartupMode; icon: string; title: string; desc: string }[] = [
@@ -109,7 +110,7 @@ export function Settings(): JSX.Element {
       </section>
 
       <section className="card">
-        <Label n="03">Window</Label>
+        <Label n="03">Window & sound</Label>
         <label className="setting-row" style={{ borderTop: 'none', paddingTop: 0 }}>
           <div>
             <b>Close to tray</b>
@@ -117,6 +118,31 @@ export function Settings(): JSX.Element {
           </div>
           <input type="checkbox" className="switch" checked={settings.closeToTray} onChange={(e) => update({ closeToTray: e.target.checked })} />
         </label>
+        <label className="setting-row">
+          <div>
+            <b>Sound effects</b>
+            <div className="muted small">Clicks, a chime for right answers, a soft tone for wrong ones, and a fanfare when you level up.</div>
+          </div>
+          <input type="checkbox" className="switch" checked={settings.sounds} onChange={(e) => update({ sounds: e.target.checked })} />
+        </label>
+        <label className="setting-row">
+          <div>
+            <b>Hover sounds</b>
+            <div className="muted small">A faint tick when the pointer moves onto a button.</div>
+          </div>
+          <input type="checkbox" className="switch" checked={settings.hoverSounds} disabled={!settings.sounds} onChange={(e) => update({ hoverSounds: e.target.checked })} />
+        </label>
+        <div className="setting-row">
+          <div>
+            <b>Preview sounds</b>
+            <div className="muted small">Hear what a right answer, a wrong answer and a level-up sound like.</div>
+          </div>
+          <div className="row">
+            <button className="btn" disabled={!settings.sounds} onClick={() => setTimeout(sfx.correct, 120)}>Right</button>
+            <button className="btn" disabled={!settings.sounds} onClick={() => setTimeout(sfx.wrong, 120)}>Wrong</button>
+            <button className="btn" disabled={!settings.sounds} onClick={() => setTimeout(sfx.levelUp, 120)}>Level up</button>
+          </div>
+        </div>
       </section>
 
       <section className="card danger-zone">
