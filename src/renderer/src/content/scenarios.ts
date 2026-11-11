@@ -1,5 +1,6 @@
 import type { Scenario } from '../../../shared/types'
 import { TOOL_SCENARIOS } from './scenarios-tools'
+import { explainScenario } from '../lib/acronyms'
 
 /** Tradeoff Arena + Daily Incident pool. Exactly one option per scenario is correct. */
 const CONCEPT_SCENARIOS: Scenario[] = [
@@ -435,4 +436,4 @@ const CONCEPT_SCENARIOS: Scenario[] = [
 ]
 
 /** Concept scenarios plus tool-specific ones (Tools track). */
-export const SCENARIOS: Scenario[] = [...CONCEPT_SCENARIOS, ...TOOL_SCENARIOS]
+export const SCENARIOS: Scenario[] = [...CONCEPT_SCENARIOS, ...TOOL_SCENARIOS].map(explainScenario)

@@ -1,6 +1,7 @@
 import type { Unit } from '../../../shared/types'
+import { explainUnits } from '../lib/acronyms'
 
-export const CURRICULUM: Unit[] = [
+export const CURRICULUM: Unit[] = explainUnits([
   // ───────────────────────────── UNIT 1 ─────────────────────────────
   {
     id: 'u1',
@@ -1609,4 +1610,4 @@ docker network rm lab`
       }
     ]
   }
-]
+])

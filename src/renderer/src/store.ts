@@ -161,6 +161,8 @@ interface Store {
   answerLessonQuestion(qid: string, correct: boolean): void
   completeLesson(id: string, r: { score?: number; total?: number; points?: number }): CompleteResult
   answerReview(qid: string, correct: boolean, practice: boolean): void
+  /** Vocabulary card (tools / terms / acronyms). New cards join the deck; due cards move boxes; others are cram practice. */
+  answerVocab(id: string, correct: boolean): void
   answerArena(correct: boolean): void
   finishArenaRound(correct: number, total: number): boolean
   answerDaily(scenarioId: string, correct: boolean): void
@@ -348,6 +350,27 @@ export const useStore = create<Store>((set, get) => {
           return
         }
         d.srs[qid] = answerCard(d.srs[qid], correct, today())
+        d.stats.reviews++
+        gainXP(d, fx, correct ? 5 : 1)
+        if (correct) questEvent(d, fx, 'review_correct')
+      })
+    },
+
+    answerVocab(id, correct) {
+      run((d, fx) => {
+        const t = today()
+        const card = d.srs[id]
+        if (!card) {
+          d.srs[id] = introduceCard(correct, t)
+          if (correct) gainXP(d, fx, 4)
+          return
+        }
+        if (card.due > t) {
+          // not due: practice only, so cramming doesn't wreck the schedule
+          if (correct) gainXP(d, fx, 1)
+          return
+        }
+        d.srs[id] = answerCard(card, correct, t)
         d.stats.reviews++
         gainXP(d, fx, correct ? 5 : 1)
         if (correct) questEvent(d, fx, 'review_correct')

@@ -14,6 +14,7 @@ import {
   type Check,
   type Graph
 } from '../lib/design'
+import { AcronymScope } from '../lib/acronyms'
 
 export type Difficulty = 'Easy' | 'Medium' | 'Hard'
 
@@ -63,7 +64,7 @@ const NO_CLIENT_DB = noClientTo(
   'Browsers and phones can’t be trusted with database credentials. Requests go to your app, and the app talks to the database.'
 )
 
-export const DESIGN_PROBLEMS: DesignProblem[] = [
+export const DESIGN_PROBLEMS: DesignProblem[] = explainProblems([
   // ───────────────────────── Easy ─────────────────────────
   {
     id: 'blog',
@@ -821,6 +822,29 @@ export const DESIGN_PROBLEMS: DesignProblem[] = [
       'Correctness comes from the SQL transaction, not the cache. The cached count is only a hint for the UI.'
     ]
   }
-]
+])
+
+/** Spell out acronyms (CDN → "CDN (content delivery network)") once per problem. */
+function explainProblems(list: DesignProblem[]): DesignProblem[] {
+  return list.map((p) => {
+    const sc = new AcronymScope([
+      p.summary,
+      p.prompt,
+      ...p.requirements,
+      ...(p.scale ?? []),
+      ...p.checks.flatMap((c) => [c.label, c.hint]),
+      ...p.notes
+    ])
+    return {
+      ...p,
+      summary: sc.text(p.summary),
+      prompt: sc.text(p.prompt),
+      requirements: sc.list(p.requirements),
+      scale: p.scale && sc.list(p.scale),
+      checks: p.checks.map((c) => ({ ...c, label: sc.text(c.label), hint: sc.text(c.hint) })),
+      notes: sc.list(p.notes)
+    }
+  })
+}
 
 export const PROBLEM_BY_ID: Record<string, DesignProblem> = Object.fromEntries(DESIGN_PROBLEMS.map((p) => [p.id, p]))

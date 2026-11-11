@@ -6,6 +6,7 @@ import { COMPUTE_NETWORK_TOOLS } from './toolbox/compute-network'
 import { DATA_STORE_TOOLS } from './toolbox/data-stores'
 import { OPERATIONS_TOOLS } from './toolbox/operations'
 import { PLAN_AUTH_TOOLS } from './toolbox/plan-auth'
+import { explainComparison, explainTool } from '../lib/acronyms'
 
 /**
  * The Toolbox encyclopedia: every entry is readable from day one.
@@ -19,7 +20,7 @@ export const TOOLS: Tool[] = [
   ...CACHE_STORAGE_MESSAGING_TOOLS,
   ...ANALYTICS_DELIVERY_TOOLS,
   ...OPERATIONS_TOOLS
-]
+].map(explainTool)
 
 export const COMPARISONS: Comparison[] = [
   {
@@ -193,4 +194,4 @@ export const COMPARISONS: Comparison[] = [
     ],
     verdict: 'Events many systems read and replay → Kafka. Jobs to be done once, with retries → RabbitMQ/SQS.'
   }
-]
+].map(explainComparison)

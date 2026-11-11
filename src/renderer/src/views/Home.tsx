@@ -7,7 +7,7 @@ import { CURRICULUM } from '../content/curriculum'
 import { levelInfo } from '../lib/levels'
 import { ALL_LESSONS, dailyScenario, moduleCode, nextLesson, nextToolLesson } from '../lib/progress'
 import { allQuestsDone, QUEST_ICON, questLabel } from '../lib/quests'
-import { dueIds } from '../lib/srs'
+import { dueReviewIds } from '../lib/vocab'
 import { useStore } from '../store'
 
 const TYPE_ICON = { lesson: 'book-open', byte: 'mic', lab: 'flask' } as const
@@ -35,7 +35,7 @@ export function Home(): JSX.Element {
   const left = Math.max(0, goal - day.xp)
   const next = nextLesson(s)
   const nextTool = nextToolLesson(s)
-  const due = dueIds(s.srs, t).length
+  const due = dueReviewIds(s.srs, t).length
   const incident = dailyScenario(s, t)
   const incidentDone = s.daily?.date === t
   const lvl = levelInfo(s.xp)
@@ -180,17 +180,17 @@ export function Home(): JSX.Element {
       </section>
 
       <section className="card">
-        <Label n="03">Spaced review</Label>
+        <Label n="03">Review</Label>
         <div className="big-num">{due}</div>
         <p className="muted small">
           {due
             ? `card${due === 1 ? '' : 's'} due. Short, frequent recall is what makes this stick.`
             : deckSize
-              ? 'Nothing due. Cards resurface on a 1–32 day schedule.'
-              : 'Your deck fills as you answer quiz questions.'}
+              ? 'Nothing due. Drill tools, terms and acronyms any time.'
+              : 'Drill tools, terms and acronyms to start your deck.'}
         </p>
-        <button className="btn" onClick={() => go('review')} disabled={!deckSize}>
-          {due ? 'Start review' : 'Practice anyway'} <Icon name="arrow-right" size={15} />
+        <button className="btn" onClick={() => go('review')}>
+          {due ? 'Start review' : 'Drill vocabulary'} <Icon name="arrow-right" size={15} />
         </button>
       </section>
 

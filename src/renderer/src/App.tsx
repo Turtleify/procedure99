@@ -8,13 +8,14 @@ import { RanksModal } from './components/Ranks'
 import { levelInfo } from './lib/levels'
 import { initMusic, nowPlaying, onTrackChange, setMusicMuted, setMusicVolume, setWindowVisible, type Track } from './lib/music'
 import { installUiSounds, setSoundPrefs } from './lib/sound'
-import { dueIds } from './lib/srs'
+import { dueReviewIds } from './lib/vocab'
 import { api, useStore, type View } from './store'
 import { Home } from './views/Home'
 import { LessonPlayer } from './views/LessonPlayer'
 import { Path } from './views/Path'
 import { DesignLab } from './views/DesignLab'
-import { Arena, DailyIncident, Review } from './views/Practice'
+import { Arena, DailyIncident } from './views/Practice'
+import { Review } from './views/Review'
 import { Settings } from './views/Settings'
 import { Toolbox } from './views/Toolbox'
 import { Trophies } from './views/Trophies'
@@ -46,7 +47,7 @@ function Logo(): JSX.Element {
 function Sidebar(): JSX.Element {
   const view = useStore((st) => st.view)
   const go = useStore((st) => st.go)
-  const due = useStore((st) => dueIds(st.s.srs, dateStr()).length)
+  const due = useStore((st) => dueReviewIds(st.s.srs, dateStr()).length)
   const active = view === 'lesson' ? 'path' : view === 'daily' ? 'home' : view
   return (
     <nav className="sidebar" aria-label="Main">
